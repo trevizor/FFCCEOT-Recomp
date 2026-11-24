@@ -33,6 +33,7 @@ inline constexpr int kCameraDistanceStep = 25;
 extern int camera_distance;  // percent of the game's distance; set and read on the game thread
 extern bool npc_exits;  // controlled party members trigger map exits and entrances
 extern bool npc_interact;  // WIP, does not work yet: controlled party members talk to characters, open shops and use crystals
+extern bool mute_bgm;  // local players 2 and up: no background music (player 1's window plays it)
 extern bool pads_use_menus;  // any connected controller operates menus, dialogue and cutscenes
 extern bool dynamic_camera;  // with several players the camera frames them all, from the camera distance setting to 4x
 inline constexpr int kDynamicCameraMax = 400;

@@ -20,6 +20,7 @@ uint16_t aspect = 0x1555;
 int camera_distance = kCameraDistanceDefault;
 bool dynamic_camera = true;
 bool npc_exits = true;
+bool mute_bgm = false;
 bool pads_use_menus = true;
 bool npc_interact = false;  // WIP
 
@@ -296,6 +297,7 @@ extern "C" void cfie_on_sound_start(NtrCpu* c) {
 // 0x0207713C: start background music (r1 = track id, 0 = stop).
 extern "C" void cfie_on_bgm_play(NtrCpu* c) {
     if (c->r[1] != 0) cfie::events.title_bgm_started = true;
+    if (cfie::mute_bgm) c->r[1] = 0;
 }
 
 // 0x02082A40: pack a tick's input record (out, buttons, touch: x, y, touching): buttons (bit 13: touching), then the

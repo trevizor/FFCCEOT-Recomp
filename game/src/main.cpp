@@ -303,6 +303,7 @@ public:
     bool show_frame(const ntr::Frame& frame) {
         if (title_dirty_) update_title();  // a change made last frame is now in effect
         if (exporting_ && !follow_first_player()) return false;
+        if (!exporting_ && parent_pid && (frames_ & 31) == 0 && !view_share::process_alive(parent_pid)) return false;
         if (runtime_->video().wide_extra != presenter_.wide_extra()) update_layout();  // (the layout follows what is in use)
         ++frames_;
         if (exit_after_frames && frames_ >= exit_after_frames) return false;
@@ -444,6 +445,7 @@ public:
 
     void on_audio(const int16_t* samples, size_t frames) override {
         if (!audio_ || skipping_) return;
+        if (player > 1 && cfie::movie().playing) return;  // (cutscene sound is player 1's alone)
         // Keep latency bounded: drop audio if the queue grows past ~100 ms.
         if (SDL_GetAudioStreamQueued(audio_) > 48000 * 4 / 10) return;
         SDL_PutAudioStreamData(audio_, samples, int(frames * 4));
@@ -802,6 +804,13 @@ private:
         cfie::npc_interact = settings.npc_interact;
         cfie::npc_control = settings.npc_control && players == 1;
         title_dirty_ = true;
+        // The windows are started with the game, so a new number of players needs a new start.
+        if (player == 1 && !restart_requested && settings.local_players != players && can_restart && !settings_path.empty()) {
+            save_settings(settings_path, settings);
+            settings_dirty_ = false;
+            restart_requested = true;
+            quit_requested_ = true;
+        }
     }
 
     void change_camera_distance(int steps) {
@@ -1798,6 +1807,9 @@ public:
     int players = 1;  // how many windows are playing on this PC
     view_share::Mapping view_map;  // the pictures players 2 and up share with the first (one window for all players)
     std::string view_share_name;   // players 2 and up: the mapping the first made
+    uint32_t parent_pid = 0;       // players 2 and up: the first player's process, whose end ends this window
+    bool can_restart = false;        // set for a normal run (not a test)
+    bool restart_requested = false;  // the first player's window: the number of players changed, so start over
 
     // The first player: one window for everyone. The mapping is made before the others start.
     bool share_one_window(const std::string& name) {
@@ -2072,6 +2084,7 @@ int main(int argc, char** argv) {
     bool read_only_save = false, unpaced = false, per_release_save = true;
     int player = 1;  // --player <n> (the windows a first one starts for the other players)
     std::string view_share_arg;  // --view-share <name>: players 2 and up draw into the first one's window
+    uint32_t parent_pid_arg = 0;  // --parent-pid <pid>: the first player's process
     bool players_asked = false;  // --players on a test run plays with them
     for (int i = first_option; i < argc; i++) {
         const std::string a = argv[i];
@@ -2082,6 +2095,7 @@ int main(int argc, char** argv) {
         }
         else if (a == "--player" && i + 1 < argc) player = std::clamp(std::atoi(argv[i + 1]), 1, 4);
         else if (a == "--view-share" && i + 1 < argc) view_share_arg = argv[i + 1];
+        else if (a == "--parent-pid" && i + 1 < argc) parent_pid_arg = uint32_t(std::strtoul(argv[i + 1], nullptr, 10));
         else if (a == "--players") players_asked = true;
         else if (a == "--read-only-save") read_only_save = true;
         else if (a == "--unpaced") unpaced = true;
@@ -2262,6 +2276,8 @@ int main(int argc, char** argv) {
             ;
         else if (a == "--view-share" && has_value)
             ++i;  // (read above)
+        else if (a == "--parent-pid" && has_value)
+            ++i;  // (read above)
         else if (a == "--one-window")
             settings.local_one_window = true;
         else if (a == "--log-sounds")
@@ -2409,7 +2425,8 @@ int main(int argc, char** argv) {
             }
             for (int n = 2; n <= players; n++) {
                 std::vector<std::string> args = forwarded;
-                args.insert(args.end(), {"--player", std::to_string(n), "--players", std::to_string(players)});
+                args.insert(args.end(), {"--player", std::to_string(n), "--players", std::to_string(players),
+                                         "--parent-pid", std::to_string(view_share::current_pid())});
                 if (!share_name.empty()) args.insert(args.end(), {"--view-share", share_name});
                 if (!proc::spawn_self(args)) std::fprintf(stderr, "cannot start the window of player %d\n", n);
             }
@@ -2435,6 +2452,8 @@ int main(int argc, char** argv) {
         return 1;
     }
     if (player > 1) host.view_share_name = view_share_arg;
+    if (player > 1) host.parent_pid = parent_pid_arg;
+    host.can_restart = player == 1 && !testing && !read_only_save && !unpaced;
     host.exit_after_frames = exit_after_frames;
     host.crash_at_frame = crash_at_frame;
     host.abort_at_frame = abort_at_frame;
@@ -2541,6 +2560,7 @@ int main(int argc, char** argv) {
                 cfie::dynamic_camera = host.settings.dynamic_camera;
                 cfie::npc_exits = host.settings.npc_exits;
                 cfie::pads_use_menus = host.settings.pads_use_menus;
+                cfie::mute_bgm = host.player > 1;
                 cfie::npc_interact = host.settings.npc_interact;
                 cfie::npc_control = host.settings.npc_control && host.players == 1;
 
@@ -2569,6 +2589,16 @@ int main(int argc, char** argv) {
     }
     host.pump_until_done();
     SDL_WaitThread(thread, nullptr);
+    if (host.restart_requested) {
+        std::vector<std::string> args;
+        for (int i = 1; i < argc; i++) {
+            const std::string a = argv[i];
+            if (a == "--players" && i + 1 < argc) i++;  // (the setting just saved says how many)
+            else if (a != "--prelaunch" && a != "--first-run") args.push_back(a);
+        }
+        if (!proc::spawn_self(args)) std::fprintf(stderr, "cannot restart the game\n");
+        return 0;
+    }
     if (ui::script::timed_out()) return 3;
     return game.rc;
 }
