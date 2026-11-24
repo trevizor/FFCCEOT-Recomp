@@ -58,7 +58,7 @@ void test_parse() {
                 "50 shot out.png\n"
                 "55 rstick 100,-50 6\n"
                 "58 spell 4\n"
-                "59 npc_button 1,A+B+X+Y+R+Left 6\n"
+                "59 npc_button 1,A+B+X+Y+R+Left+Up+Down 6\n"
                 "59 npc_rstick 2,100,-50 4\n"
                 "60 quit\n");
     input_script::Script s;
@@ -73,7 +73,7 @@ void test_parse() {
     CHECK(s.steps[5].rstick && s.steps[5].rstick_x == 100 && s.steps[5].rstick_y == -50 && s.steps[5].frames == 6);
     CHECK(s.steps[6].spell == 4 && s.steps[0].spell == -1);
     CHECK(s.steps[7].npc_button_slot == 1 &&
-          s.steps[7].npc_buttons == (ntr::KeyA | ntr::KeyB | ntr::KeyX | ntr::KeyY | ntr::KeyR | ntr::KeyLeft) &&
+          s.steps[7].npc_buttons == (ntr::KeyA | ntr::KeyB | ntr::KeyX | ntr::KeyY | ntr::KeyR | ntr::KeyLeft | ntr::KeyUp | ntr::KeyDown) &&
           s.steps[7].frames == 6);
     CHECK(s.steps[8].npc_rstick_slot == 2 && s.steps[8].npc_rstick_x == 100 &&
           s.steps[8].npc_rstick_y == -50 && s.steps[8].frames == 4);

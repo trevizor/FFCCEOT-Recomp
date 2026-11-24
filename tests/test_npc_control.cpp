@@ -8,6 +8,7 @@
 extern "C" void cfie_npc_input(NtrCpu* c);
 extern "C" void cfie_npc_buttons(NtrCpu* c);
 extern "C" int cfie_npc_ai(NtrCpu* c);
+extern "C" int cfie_analog_move(NtrCpu* c);
 NtrHostApi ntr_host{};
 
 namespace {
@@ -95,6 +96,7 @@ void test_npc_input() {
     cpu.r[3] = 0x5678;
     cpu.r[14] = 0x2468;
     ntr_wr32(&cpu, kController + 20, kNpc);
+    ntr_wr32(&cpu, kNpc + 320, kController);
     ntr_wr8(&cpu, kNpc + 172, 1);
     ntr_wr32(&cpu, kPlayers + 328, kLeader);
     ntr_wr32(&cpu, kPlayers + 572 + 328, kNpc);
@@ -184,6 +186,31 @@ void test_npc_input() {
     cfie::npc_input[1] = {true, 1, 0, 0x100, 2};
     cfie_npc_input(&cpu);
     CHECK(ntr_rd32(&cpu, kInput + 4) == 0 && ntr_rd32(&cpu, kInput + 12) == 0);
+
+    ntr_wr32(&cpu, kController + 8, 23);
+    cfie::npc_input[1] = {true, 0, 1, 0x400, 2};
+    cfie_npc_input(&cpu);
+    CHECK(ntr_rd32(&cpu, kInput + 4) == 0 && ntr_rd32(&cpu, kInput + 12) == 0);
+    cpu.r[0] = 0x021218AC + 32 + 12;
+    cfie_npc_buttons(&cpu);
+    CHECK(cpu.r[2] == 0x480);
+    cpu.r[0] = kInput + 4;
+    cpu.r[1] = 0x80;
+    cpu.r[2] = 4096;
+    cpu.r[3] = 1;
+    CHECK(cfie_analog_move(&cpu) == 1);
+    CHECK(int32_t(ntr_rd32(&cpu, kInput + 4)) == 4096);
+    CHECK(yaw_character == kLeader);
+    cpu.r[0] = 0x021218AC + 32 + 12;
+    cfie::npc_input[1].buttons |= 0x100;
+    cfie_npc_buttons(&cpu);
+    CHECK(cpu.r[2] == 0x400);
+    ntr_wr32(&cpu, kController + 8, 2);
+    cpu.r[0] = kController;
+    cpu.r[1] = kInput;
+    cfie::npc_input[1] = {true, 0, 1, 0, 2};
+    cfie_npc_input(&cpu);
+    CHECK(int32_t(ntr_rd32(&cpu, kInput + 4)) == 8960);
 
     CHECK(cfie::select_release("CFIP"));
     expected_field = 0x0211679C;

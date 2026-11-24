@@ -53,7 +53,7 @@ extern Stick stick;
 struct NpcInput {
     bool active = false;
     float x = 0, y = 0;
-    uint16_t buttons = 0;  // DS A, B, X and Y
+    uint16_t buttons = 0;  // DS actions, R and directions
     int spell = 0;
 };
 extern NpcInput npc_input[4];

@@ -135,8 +135,10 @@ struct SlotStick {
 };
 constexpr uint8_t kFullPush = 63;
 constexpr uint16_t kNpcActionButtons = 0x0C03;
+constexpr uint16_t kDsDirections = 0x00F0;
 constexpr uint16_t kDsR = 0x0100;
 constexpr uint16_t kDsX = 0x0400;
+constexpr uint32_t kCastState = 23;
 SlotStick slot_sticks[4];
 
 // The stick of player slot `player` (a character's +172), or null if the D-pad moves it as on the DS.
@@ -327,6 +329,25 @@ constexpr int64_t kNpcSpeed = 8960;
 // the speed times how far it is pushed. Fixed point only, so every console moves it the same.
 extern "C" int cfie_analog_move(NtrCpu* c) {
     const int32_t player = int8_t(c->r[3]);
+    if (player >= 1 && player <= 3 && cfie::npc_input[player].active &&
+        ntr_rd8(c, A->network + 2) == 0 && (c->r[1] & kDsDirections)) {
+        const uint32_t character = ntr_rd32(c, A->players + 572 * uint32_t(player) + 328);
+        const uint32_t controller = character ? ntr_rd32(c, character + 320) : 0;
+        if (controller && ntr_rd32(c, controller + 8) == kCastState) {
+            const auto& in = cfie::npc_input[player];
+            float x = in.x, y = in.y;
+            float length = std::min(std::hypot(x, y), 1.0f);
+            if (length == 0) {
+                x = float(bool(c->r[1] & 0x10)) - float(bool(c->r[1] & 0x20));
+                y = float(bool(c->r[1] & 0x80)) - float(bool(c->r[1] & 0x40));
+                length = 1;
+            }
+            const uint8_t angle = uint8_t(std::lround(std::atan2(x, y) * (128 / 3.14159265358979)) & 0xFF);
+            write_stick_vector(c, c->r[0], 0, angle, int64_t(int32_t(c->r[2])) * std::lround(length * kFullPush) / kFullPush);
+            c->r[0] = 1;
+            return 1;
+        }
+    }
     const SlotStick* s = moving_stick(player);
     if (!s || !(c->r[1] & 0xF0)) return 0;
     write_stick_vector(c, c->r[0], player, s->angle, int64_t(int32_t(c->r[2])) * s->push / kFullPush);
@@ -342,7 +363,18 @@ extern "C" void cfie_npc_buttons(NtrCpu* c) {
     if (offset % 32 != 0) return;
     const uint32_t slot = offset / 32;
     if (slot < 1 || slot > 3 || !cfie::npc_input[slot].active || ntr_rd8(c, A->network + 2) != 0) return;
-    c->r[2] = cfie::npc_input[slot].buttons & kNpcActionButtons;
+    const auto& in = cfie::npc_input[slot];
+    c->r[2] = in.buttons & kNpcActionButtons;
+    const uint32_t character = ntr_rd32(c, A->players + 572 * slot + 328);
+    const uint32_t controller = character ? ntr_rd32(c, character + 320) : 0;
+    if (controller && ntr_rd32(c, controller + 8) == kCastState && !(in.buttons & kDsR)) {
+        c->r[2] |= in.buttons & kDsDirections;
+        const float diagonal = 0.38268343f * std::hypot(in.x, in.y);
+        if (in.x < -diagonal) c->r[2] |= 0x20;
+        if (in.x > diagonal) c->r[2] |= 0x10;
+        if (in.y < -diagonal) c->r[2] |= 0x40;
+        if (in.y > diagonal) c->r[2] |= 0x80;
+    }
     cfie::npc_buttons_read[slot] = true;
 }
 
@@ -409,7 +441,8 @@ extern "C" void cfie_npc_input(NtrCpu* c) {
         }
         c->r[0] = r0; c->r[1] = r1; c->r[2] = r2; c->r[3] = r3; c->r[14] = lr;
     }
-    const float length = (in.buttons & kDsR) ? 0.0f : std::min(std::hypot(in.x, in.y), 1.0f);
+    const float length = (in.buttons & kDsR) || ntr_rd32(c, c->r[0] + 8) == kCastState
+        ? 0.0f : std::min(std::hypot(in.x, in.y), 1.0f);
     uint8_t angle = 0;
     int64_t speed = 0;
     if (length > 0) {

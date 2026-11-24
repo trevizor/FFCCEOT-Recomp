@@ -105,7 +105,7 @@ bool load(const std::filesystem::path& path, Script& script, std::string& error)
             ok = bool(button_arg >> s.npc_button_slot >> comma >> names) && comma == ',' &&
                  s.npc_button_slot >= 1 && s.npc_button_slot <= 3 &&
                  parse_buttons(names, s.npc_buttons) &&
-                 !(s.npc_buttons & ~(ntr::KeyA | ntr::KeyB | ntr::KeyX | ntr::KeyY | ntr::KeyR | ntr::KeyLeft | ntr::KeyRight));
+                 !(s.npc_buttons & ~(ntr::KeyA | ntr::KeyB | ntr::KeyX | ntr::KeyY | ntr::KeyR | ntr::KeyUp | ntr::KeyDown | ntr::KeyLeft | ntr::KeyRight));
         }
         else if (cmd == "shot") s.shot = arg, ok = !arg.empty();
         else if (cmd == "quit") s.quit = true;

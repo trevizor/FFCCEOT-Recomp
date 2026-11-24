@@ -1287,6 +1287,8 @@ private:
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::X)], dead)) buttons |= ntr::KeyX;
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::Y)], dead)) buttons |= ntr::KeyY;
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::R)], dead)) buttons |= ntr::KeyR;
+            if (input::pad_held(e.pad, bindings.pad[int(input::Action::Up)], dead)) buttons |= ntr::KeyUp;
+            if (input::pad_held(e.pad, bindings.pad[int(input::Action::Down)], dead)) buttons |= ntr::KeyDown;
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::Left)], dead) || x < -dead) buttons |= ntr::KeyLeft;
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::Right)], dead) || x > dead) buttons |= ntr::KeyRight;
             if (e.spell_hold) {
