@@ -80,6 +80,24 @@ public:
     // which the bottom screen is in the middle. Takes effect with the next layout().
     void set_wide(int extra) { wide_extra_ = extra; }
     int wide_extra() const { return wide_extra_; }
+    // Where the game goes in the window, when it shares it with other players (one window for all players): the screens
+    // are laid out inside this region and the rest is for the pictures set_remote draws. Empty (the default): the whole
+    // window. Takes effect with the next layout().
+    void set_region(const Rect& region) { region_ = region; }
+    // A picture of another player's game (RGBA, `w` x `h`, bottom row first) shown over `dest` (window pixels) with every
+    // frame that is drawn; it is uploaded when `serial` differs from that slot's last (null: keep the last one). Slots 0 to 2.
+    void set_remote(int slot, const std::uint8_t* rgba, int w, int h, std::uint64_t serial, const Rect& dest);
+    void clear_remote(int slot);
+    // This player has no window to show: frames are drawn into a framebuffer of the size layout() was given (nothing is
+    // swapped in), and `exported` is called after each, when read_rgba can take the picture.
+    void set_offscreen(bool on) { offscreen_ = on; }
+    // The last frame drawn, as RGBA (width * height * 4 bytes, bottom row first), offscreen only.
+    bool read_rgba(std::uint8_t* dst);
+    int width() const { return width_; }
+    int height() const { return height_; }
+    std::function<void()> exported;
+    // Called before each present() draws (what the frontend wants uploaded first, like the other players' pictures).
+    std::function<void()> before_draw;
     // Lays the screens out for the window's current size.
     void layout(int window_px_w, int window_px_h, const LayoutSettings& settings);
 
@@ -123,12 +141,14 @@ public:
     // Drawn over every frame that present() shows (the settings menu), before it is saved or swapped in.
     std::function<void()> overlay;
     void present(const ntr::Frame* frame, Filter filter, const char* screenshot = nullptr) {
+        if (before_draw) before_draw();
         gpu_begin();
         draw(frame, filter);
         if (overlay) overlay();
         gpu_end();
         swap(screenshot);
         if (window2_) show_second(frame, filter, screenshot);
+        if (offscreen_ && exported) exported();
     }
 
     // Testing (--perf-log, --frame-hash). The hash of what was swapped in since the last call (every present adds to it);
@@ -155,6 +175,22 @@ private:
                     Filter filter);
     void show_second(const ntr::Frame* frame, Filter filter, const char* screenshot);
     void draw_picture(const Rect& r, float opacity, Filter filter, int width, int height, const ntr::Frame* frame);
+    void layout_views(int w, int h, const LayoutSettings& settings);
+    void draw_remotes(int width, int height);
+    unsigned offscreen_target(int width, int height);
+
+    Rect region_;
+    bool offscreen_ = false;
+    unsigned offscreen_fbo_ = 0, offscreen_tex_ = 0;
+    int offscreen_w_ = 0, offscreen_h_ = 0;
+    struct Remote {
+        unsigned tex = 0;
+        int w = 0, h = 0;
+        std::uint64_t serial = ~std::uint64_t(0);
+        Rect dest;
+        bool on = false;
+    };
+    Remote remotes_[3];
 
     SDL_Window* window_ = nullptr;
     void* context_ = nullptr;  // SDL_GLContext

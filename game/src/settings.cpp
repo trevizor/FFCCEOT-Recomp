@@ -147,6 +147,7 @@ const Field kFields[] = {
           }},
     Field{"game.local_players", [](const Settings& s) { return std::to_string(s.local_players); },
           [](Settings& s, const std::string& v) { return parse_int(v, 1, 4, s.local_players); }},
+    BOOL_FIELD("game.local_one_window", local_one_window),
     BOOL_FIELD("game.npc_control", npc_control),
     BOOL_FIELD("game.dynamic_camera", dynamic_camera),
     BOOL_FIELD("game.npc_exits", npc_exits),

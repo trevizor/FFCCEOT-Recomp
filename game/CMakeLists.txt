@@ -108,7 +108,7 @@ add_custom_command(
 file(GLOB FFCC_UI_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/*.cpp)
 
 # The game executable: takes the user's ROM on the command line.
-add_executable(ffcc src/main.cpp src/game_module.cpp src/process.cpp src/setup.cpp src/crash_report.cpp src/crash_dialog.cpp src/report.cpp src/video.cpp src/cfie_hooks.cpp src/settings.cpp src/input.cpp src/app_icon.cpp src/input_script.cpp src/spell_ring.cpp src/thp.cpp src/wii_cutscenes.cpp src/release_info.cpp src/update_check.cpp ${FFCC_UI_SOURCES} ${FFCC_UI_ASSETS})
+add_executable(ffcc src/main.cpp src/game_module.cpp src/process.cpp src/view_share.cpp src/setup.cpp src/crash_report.cpp src/crash_dialog.cpp src/report.cpp src/video.cpp src/cfie_hooks.cpp src/settings.cpp src/input.cpp src/app_icon.cpp src/input_script.cpp src/spell_ring.cpp src/thp.cpp src/wii_cutscenes.cpp src/release_info.cpp src/update_check.cpp ${FFCC_UI_SOURCES} ${FFCC_UI_ASSETS})
 target_include_directories(ffcc PRIVATE src ${PROJECT_SOURCE_DIR}/runtime/src)
 target_include_directories(ffcc SYSTEM PRIVATE ${CMAKE_SOURCE_DIR}/third_party/stb)  # stb_image: the Wii cutscenes' JPEG frames
 if(FFCC_ROM)

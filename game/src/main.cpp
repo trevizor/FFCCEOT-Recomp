@@ -59,6 +59,7 @@
 #include "ui/ui.hpp"
 #include "ui/ui_script.hpp"
 #include "video.hpp"
+#include "view_share.hpp"
 
 namespace {
 
@@ -113,6 +114,17 @@ public:
         const video::Layout l = settings.layout.layout;
         const bool wide = l == video::Layout::Single || l == video::Layout::MainSide || l == video::Layout::Windows;
         const bool stacked = l == video::Layout::Stacked;
+        // One window for all players: the others have no window of their own (their picture goes to the first's).
+        if (!view_share_name.empty() && player > 1 && view_map.open(view_share_name)) {
+            exporting_ = true;
+            writer_ = view_share::Writer(view_map.block(), player - 2);
+            window_ = SDL_CreateWindow(player_title().c_str(), 640, 360, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
+            if (!window_) {
+                std::fprintf(stderr, "cannot open the game window: %s\n", SDL_GetError());
+                return false;
+            }
+            return true;
+        }
         window_ = SDL_CreateWindow(player_title().c_str(), wide ? 1280 : stacked ? kScreenW * 3 : kScreenW * 2 * 3,
                                    wide ? 720 : stacked ? kScreenH * 2 * 3 : kScreenH * 3,
                                    SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
@@ -178,12 +190,23 @@ public:
     // Game thread.
     bool init_graphics(const std::filesystem::path& save_path) {
         use_save_path(save_path);
-        if (!presenter_.init(window_, allow_flip_model)) {
+        if (!presenter_.init(window_, allow_flip_model && !exporting_)) {
             std::fprintf(stderr, "cannot open the game window: %s\n", SDL_GetError());
             return false;
         }
+        pip_ = settings.layout.second_screen;
+        if (exporting_) {
+            presenter_.set_offscreen(true);
+            presenter_.exported = [this] {
+                if (std::uint8_t* p = writer_.begin(presenter_.width(), presenter_.height())) {
+                    presenter_.read_rgba(p);
+                    writer_.publish();
+                }
+            };
+        }
+        if (combined_) presenter_.before_draw = [this] { pull_remotes(); };
         update_layout();
-        presenter_.overlay = [this] { draw_ui(); };
+        if (!exporting_) presenter_.overlay = [this] { draw_ui(); };
         init_ui();
 
         SDL_AudioSpec spec{SDL_AUDIO_S16, 2, 48000};
@@ -241,7 +264,8 @@ public:
         v.hud_edges = settings.hud_edges;
         v.hud_scale = settings.hud_scale;
         // (the software renderer can't draw extra frames: it stays at 60)
-        v.display_rate = settings.interpolate && settings.display_rate && v.renderer != ntr::Renderer::Software;
+        v.display_rate = settings.interpolate && settings.display_rate && v.renderer != ntr::Renderer::Software &&
+                         !combined_ && !exporting_;
         return v;
     }
 
@@ -278,6 +302,7 @@ public:
 
     bool show_frame(const ntr::Frame& frame) {
         if (title_dirty_) update_title();  // a change made last frame is now in effect
+        if (exporting_ && !follow_first_player()) return false;
         if (runtime_->video().wide_extra != presenter_.wide_extra()) update_layout();  // (the layout follows what is in use)
         ++frames_;
         if (exit_after_frames && frames_ >= exit_after_frames) return false;
@@ -934,14 +959,46 @@ public:
     }
 
 private:
+    // Players 2 and up, when the players share one window: whether the first player's program still runs, and a change
+    // of the picture size it wants.
+    bool follow_first_player() {
+        const view_share::Block* b = view_map.block();
+        if ((frames_ & 31) == 0 && !view_share::process_alive(b->parent_pid.load())) return false;
+        if (b->cell_w.load() != cell_w_ || b->cell_h.load() != cell_h_) {
+            update_layout();
+            sync_video();
+        }
+        return true;
+    }
+
+    // The first player's window: the other players' newest pictures, to be drawn into their cells.
+    void pull_remotes() {
+        for (int s = 0; s < players - 1 && s < view_share::kChildren; s++) {
+            int w = 0, h = 0;
+            if (const std::uint8_t* p = readers_[s].acquire(w, h)) {
+                presenter_.set_remote(s, p, w, h, readers_[s].serial(), remote_dest_[s]);
+                readers_[s].release();
+            } else {
+                presenter_.set_remote(s, nullptr, 0, 0, 0, remote_dest_[s]);
+            }
+        }
+    }
+
+    bool combined_ = false, exporting_ = false;  // one window for all players: this is the first, or one of the others
+    bool pip_ = false;                           // the bottom screen shown (with combined_ or exporting_)
+    std::uint32_t cell_w_ = 0, cell_h_ = 0;      // the picture size the first player asked for (exporting_)
+    view_share::Writer writer_;
+    view_share::Reader readers_[view_share::kChildren];
+    video::Rect remote_dest_[view_share::kChildren];
+
     void toggle_fullscreen() {
         set_fullscreen(!fullscreen_);
         settings_dirty_ = true;
     }
 
-    // The second window is open in the Windows layout only.
+    // The window is open in the Windows layout only, and not when the players share one window.
     void sync_second_window() {
-        const bool wanted = settings.layout.layout == video::Layout::Windows;
+        const bool wanted = settings.layout.layout == video::Layout::Windows && !combined_ && !exporting_;
         if (wanted && !window2_) {
             main_thread::run([this] {
                 int x = 0, y = 0, w = 0, h = 0;
@@ -970,11 +1027,36 @@ private:
         int w = 0, h = 0, pw = 0, ph = 0;
         SDL_GetWindowSize(window_, &w, &h);
         SDL_GetWindowSizeInPixels(window_, &pw, &ph);
+        video::LayoutSettings ls = settings.layout;
+        if (combined_ || exporting_) {
+            // The players' pictures share the window in cells, each with the main screen and the bottom one as a corner picture.
+            ls.layout = video::Layout::Single;
+            ls.second_screen = pip_;
+        }
+        if (exporting_) {
+            const view_share::Block* b = view_map.block();
+            cell_w_ = b->cell_w.load(), cell_h_ = b->cell_h.load();
+            w = pw = cell_w_ ? int(cell_w_) : 640;
+            h = ph = cell_h_ ? int(cell_h_) : 360;
+        }
+        if (combined_) {
+            const view_share::Cell mine = view_share::cell(players, 0, pw, ph);
+            presenter_.set_region({float(mine.x), float(mine.y), float(mine.w), float(mine.h)});
+            int sw = 0, sh = 0;
+            const view_share::Cell other = view_share::cell(players, 1, pw, ph);
+            view_share::shared_size(other.w, other.h, sw, sh);
+            view_map.block()->cell_w.store(std::uint32_t(sw));
+            view_map.block()->cell_h.store(std::uint32_t(sh));
+            for (int s = 0; s < players - 1; s++) {
+                const view_share::Cell c = view_share::cell(players, s + 1, pw, ph);
+                remote_dest_[s] = {float(c.x), float(c.y), float(c.w), float(c.h)};
+            }
+        }
         // (the runtime's choice: the software and compute renderers stay 4:3)
         const int extra = runtime_ ? runtime_->video().wide_extra : 0;
         presenter_.set_wide(extra);
         cfie::aspect = extra ? uint16_t(((256 + 2 * extra) * 4096 + 96) / 192) : uint16_t(0x1555);
-        presenter_.layout(pw, ph, settings.layout);
+        presenter_.layout(pw, ph, ls);
         pixel_ratio_ = w > 0 ? float(pw) / w : 1.0f;
         if (window2_) {
             SDL_GetWindowSize(window2_, &w, &h);
@@ -1060,6 +1142,16 @@ private:
         cfie::analog_movement = c.analog_movement;
         b &= ~(1u << 31);
         if (exclusive) presses_ = 0;
+        // Select shows or hides the bottom screen (a corner picture of the player's own picture).
+        if (!exclusive && (presses_ & ntr::KeySelect) && !ui::any_document_visible()) {
+            if (combined_ || exporting_) {
+                pip_ = !pip_;
+                update_layout();
+            } else if (settings.layout.layout == video::Layout::Single) {
+                settings.layout.second_screen = !settings.layout.second_screen;
+                update_layout();
+            }
+        }
         script_input(b, touching, sx, sy);
         const int tx = std::clamp(int(sx), 0, kScreenW - 1), ty = std::clamp(int(sy), 0, kScreenH - 1);
         recorder.add(frames_ + 1, b, presses_, touching, tx, ty, stick.x, stick.y);
@@ -1266,7 +1358,12 @@ private:
                     }
                 }
             }
-            if (!paused && back && !e.back) e.slot = 0, e.player = 0;
+            // Holding Back (about 0.75 s) gives the character back; a tap does nothing.
+            if (!paused && back && e.slot != 0) {
+                if (++e.back_ticks == kReleaseHoldTicks) e.slot = 0, e.player = 0;
+            } else {
+                e.back_ticks = 0;
+            }
             e.start = start, e.back = back;
             if (paused || e.slot == 0) {
                 e.latch = {};
@@ -1629,6 +1726,7 @@ private:
         int slot = 0;
         int player = 0;
         bool start = false, back = false;
+        int back_ticks = 0;
         bool spell_hold = false;
         ntr::InputLatch latch;
         uint32_t presses = 0;
@@ -1636,6 +1734,7 @@ private:
     };
     std::vector<ExtraPad> extra_pads_;
     static constexpr int kNpcPresentTicks = 20;  // input ticks without a step: the party member is not on the field
+    static constexpr int kReleaseHoldTicks = 45;  // input ticks Back is held to give a party member back
     ntr::Runtime* runtime_ = nullptr;
     std::chrono::steady_clock::time_point next_frame_;
     double emu_time_ = 0;          // display-rate 3D: when the current emulated frame went on screen (seconds)
@@ -1697,6 +1796,16 @@ public:
     std::filesystem::path settings_path;
     int player = 1;   // this window's player, 1-4 (2 and up keep a save of their own and leave settings.ini alone)
     int players = 1;  // how many windows are playing on this PC
+    view_share::Mapping view_map;  // the pictures players 2 and up share with the first (one window for all players)
+    std::string view_share_name;   // players 2 and up: the mapping the first made
+
+    // The first player: one window for everyone. The mapping is made before the others start.
+    bool share_one_window(const std::string& name) {
+        if (!view_map.create(name)) return false;
+        combined_ = true;
+        for (int s = 0; s < view_share::kChildren; s++) readers_[s] = view_share::Reader(view_map.block(), s);
+        return true;
+    }
     uint64_t exit_after_frames = 0;  // 0 = run until the window closes
     uint64_t crash_at_frame = 0, abort_at_frame = 0, report_at_frame = 0;  // testing the crash dialog and the report
     std::map<uint64_t, std::string> screenshots;  // debugging: save the window at these frames
@@ -1962,6 +2071,8 @@ int main(int argc, char** argv) {
     // Testing options that decide which files are used come first: the other options override settings.ini.
     bool read_only_save = false, unpaced = false, per_release_save = true;
     int player = 1;  // --player <n> (the windows a first one starts for the other players)
+    std::string view_share_arg;  // --view-share <name>: players 2 and up draw into the first one's window
+    bool players_asked = false;  // --players on a test run plays with them
     for (int i = first_option; i < argc; i++) {
         const std::string a = argv[i];
         if (a == "--no-settings") settings_path.clear();
@@ -1970,6 +2081,8 @@ int main(int argc, char** argv) {
             per_release_save = false;
         }
         else if (a == "--player" && i + 1 < argc) player = std::clamp(std::atoi(argv[i + 1]), 1, 4);
+        else if (a == "--view-share" && i + 1 < argc) view_share_arg = argv[i + 1];
+        else if (a == "--players") players_asked = true;
         else if (a == "--read-only-save") read_only_save = true;
         else if (a == "--unpaced") unpaced = true;
     }
@@ -2147,6 +2260,10 @@ int main(int argc, char** argv) {
         }
         else if (a == "--no-settings" || a == "--read-only-save" || a == "--unpaced")
             ;
+        else if (a == "--view-share" && has_value)
+            ++i;  // (read above)
+        else if (a == "--one-window")
+            settings.local_one_window = true;
         else if (a == "--log-sounds")
             cfie::log_sounds = true;
         else if (a == "--log-movies")
@@ -2251,7 +2368,7 @@ int main(int argc, char** argv) {
     else if (testing || player > 1) settings.suppress_preset = true;  // (not saved: the real settings.ini keeps its own answer)
     // The windows that play together on this PC: the first starts the others (Windows only: that is where instances
     // have local wireless between them), once its game is running. Test runs play alone.
-    const int players = testing ? 1 : std::clamp(settings.local_players, player, 4);
+    const int players = testing && !players_asked ? 1 : std::clamp(settings.local_players, player, 4);
 
     struct Game {
         SdlHost& host;
@@ -2277,17 +2394,23 @@ int main(int argc, char** argv) {
     game.module_path = game_module_path;
     game.startup_rom = setup_rom;
     game.player = player;
+    const bool one_window = player == 1 && players > 1 && settings.local_one_window && view_share::Mapping::supported();
+    const std::string share_name = one_window ? "Local\\FFCCEOT-Recomp-views-" + std::to_string(view_share::current_pid()) : "";
     if (player == 1 && players > 1) {
         // The others are copies of this program told which player they are, with the options this one has.
-        game.start_other_players = [argc, argv, players] {
+        game.start_other_players = [argc, argv, players, share_name] {
             std::vector<std::string> forwarded;
             for (int i = 1; i < argc; i++) {
                 const std::string a = argv[i];
-                if (a != "--prelaunch" && a != "--first-run") forwarded.push_back(a);
+                // (a test's screenshots, script and length are the first player's)
+                if (a == "--screenshot-at-frame" && i + 2 < argc) i += 2;
+                else if ((a == "--input-script" || a == "--exit-after-frames") && i + 1 < argc) i++;
+                else if (a != "--prelaunch" && a != "--first-run") forwarded.push_back(a);
             }
             for (int n = 2; n <= players; n++) {
                 std::vector<std::string> args = forwarded;
                 args.insert(args.end(), {"--player", std::to_string(n), "--players", std::to_string(players)});
+                if (!share_name.empty()) args.insert(args.end(), {"--view-share", share_name});
                 if (!proc::spawn_self(args)) std::fprintf(stderr, "cannot start the window of player %d\n", n);
             }
         };
@@ -2306,6 +2429,12 @@ int main(int argc, char** argv) {
     host.settings_path = player > 1 ? std::filesystem::path{} : settings_path;  // (players 2 and up leave it to the first)
     host.player = player;
     host.players = players;
+    if (one_window && !host.share_one_window(share_name)) {
+        std::fprintf(stderr, "cannot share one window between the players\n");
+        game.start_other_players = nullptr;
+        return 1;
+    }
+    if (player > 1) host.view_share_name = view_share_arg;
     host.exit_after_frames = exit_after_frames;
     host.crash_at_frame = crash_at_frame;
     host.abort_at_frame = abort_at_frame;

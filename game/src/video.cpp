@@ -262,6 +262,19 @@ void Presenter::shutdown() {
     if (!context_) return;
     close_second();
     flip_.reset();
+    if (offscreen_fbo_) {
+        GLuint f = offscreen_fbo_, ot = offscreen_tex_;
+        glDeleteFramebuffers(1, &f);
+        glDeleteTextures(1, &ot);
+        offscreen_fbo_ = offscreen_tex_ = 0;
+    }
+    for (Remote& r : remotes_) {
+        if (r.tex) {
+            GLuint rt = r.tex;
+            glDeleteTextures(1, &rt);
+        }
+        r = Remote{};
+    }
     GLuint t = soft_tex_, b = vbo_, a = vao_;
     if (picture_tex_) {
         GLuint p = picture_tex_;
@@ -277,9 +290,19 @@ void Presenter::shutdown() {
     context_ = nullptr;
 }
 
-void Presenter::layout(int w, int h, const LayoutSettings& s) {
-    width_ = w;
-    height_ = h;
+void Presenter::layout(int window_w, int window_h, const LayoutSettings& s) {
+    width_ = window_w;
+    height_ = window_h;
+    const bool part = region_.w > 0 && region_.h > 0;
+    const Rect r = part ? region_ : Rect{0, 0, float(window_w), float(window_h)};
+    layout_views(int(r.w), int(r.h), s);
+    for (int i = 0; i < view_count_; i++) {
+        views_[i].rect.x += r.x;
+        views_[i].rect.y += r.y;
+    }
+}
+
+void Presenter::layout_views(int w, int h, const LayoutSettings& s) {
     const int first = s.swap ? 1 : 0, second = 1 - first;
     // Width over height of each screen: the top one is wider with widescreen.
     const float standard = float(kScreenW) / kScreenH;
@@ -355,7 +378,102 @@ void Presenter::draw(const ntr::Frame* frame, Filter filter) {
 #ifdef _WIN32
     target_ = flip_ ? flip_->begin(width_, height_) : 0;
 #endif
+    if (offscreen_) target_ = offscreen_target(width_, height_);
     draw_views(target_, width_, height_, views_, view_count_, frame, filter);
+    draw_remotes(width_, height_);
+}
+
+unsigned Presenter::offscreen_target(int width, int height) {
+    if (!offscreen_fbo_ || width != offscreen_w_ || height != offscreen_h_) {
+        GLuint f = offscreen_fbo_, t = offscreen_tex_;
+        if (f) glDeleteFramebuffers(1, &f);
+        if (t) glDeleteTextures(1, &t);
+        glGenTextures(1, &t);
+        glBindTexture(GL_TEXTURE_2D, t);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glGenFramebuffers(1, &f);
+        glBindFramebuffer(GL_FRAMEBUFFER, f);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, t, 0);
+        offscreen_fbo_ = f;
+        offscreen_tex_ = t;
+        offscreen_w_ = width;
+        offscreen_h_ = height;
+    }
+    return offscreen_fbo_;
+}
+
+bool Presenter::read_rgba(std::uint8_t* dst) {
+    if (!offscreen_ || !offscreen_fbo_ || !dst) return false;
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, offscreen_fbo_);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+    glReadPixels(0, 0, offscreen_w_, offscreen_h_, GL_RGBA, GL_UNSIGNED_BYTE, dst);
+    return true;
+}
+
+void Presenter::set_remote(int slot, const std::uint8_t* rgba, int w, int h, std::uint64_t serial, const Rect& dest) {
+    if (slot < 0 || slot >= 3) return;
+    Remote& r = remotes_[slot];
+    r.dest = dest;
+    if (!rgba) {  // (no new picture: the last one stays)
+        r.on = r.tex != 0;
+        return;
+    }
+    r.on = w > 0 && h > 0;
+    if (!r.on || serial == r.serial) return;
+    if (!r.tex) {
+        GLuint t;
+        glGenTextures(1, &t);
+        r.tex = t;
+    }
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, r.tex);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    if (w != r.w || h != r.h) {
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, w, h, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        r.w = w;
+        r.h = h;
+    } else {
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, 0, w, h, 1, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    }
+    r.serial = serial;
+}
+
+void Presenter::clear_remote(int slot) {
+    if (slot >= 0 && slot < 3) remotes_[slot].on = false;
+}
+
+void Presenter::draw_remotes(int width, int height) {
+    bool any = false;
+    for (const Remote& r : remotes_) any |= r.on && r.tex;
+    if (!any) return;
+    glBindFramebuffer(GL_FRAMEBUFFER, target_);
+    glUseProgram(program_);
+    glUniform1i(u_tex_, 0);
+    glUniform1i(u_sharp_, 0);
+    glBindVertexArray(vao_);
+    glActiveTexture(GL_TEXTURE0);
+    for (const Remote& r : remotes_) {
+        if (!r.on || !r.tex) continue;
+        glBindTexture(GL_TEXTURE_2D_ARRAY, r.tex);
+        const Rect& d = r.dest;
+        // The picture is stored bottom row first: swap the top and bottom edges.
+        glUniform2f(u_uv_x_, 0.0f, 1.0f);
+        glUniform4f(u_dest_, d.x / width * 2 - 1, 1 - (d.y + d.h) / height * 2, (d.x + d.w) / width * 2 - 1,
+                    1 - d.y / height * 2);
+        glUniform1f(u_layer_, 0.0f);
+        glUniform2f(u_out_size_, d.w, d.h);
+        glUniform1f(u_opacity_, 1.0f);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    }
+    glUseProgram(0);
 }
 
 void Presenter::draw_views(unsigned target, int width, int height, const ScreenView* views, int count,
@@ -524,6 +642,7 @@ void Presenter::swap(const char* screenshot) {
             SDL_DestroySurface(surf);
         }
     }
+    if (offscreen_) return;
 #ifdef _WIN32
     if (flip_) {
         flip_->present(vsync_, tearing_);

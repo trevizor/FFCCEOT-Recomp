@@ -76,7 +76,7 @@ bool is_experimental(const Rml::String& key) {
     static const char* const kRows[] = {"Aspect ratio", "HUD position", "HUD size", "3D frame rate", "Frame pacing",
                                         "Frame rate limit", "Stable textures", "Texture smoothing", "Analog movement",
                                         "Console name", "Wi-Fi Connection server", "DNS server address", "Input buffer",
-                                        "Camera distance", "Dynamic camera", "Party members use map exits",
+                                        "Camera distance", "Dynamic camera", "Party members use map exits", "One window for all players",
                                          "Party members interact", "All controllers use menus"};
     return std::find(std::begin(kRows), std::end(kRows), key) != std::end(kRows);
 }
@@ -659,11 +659,15 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             "save (cfie.sav, cfie.p2.sav, ...) and its own controller (the first controller is player 1's, the second "
             "player 2's, and so on), and they play together over local wireless: host or join a game from the "
             "game's own menus as on a DS. Takes effect the next time the game starts.", 1, 4, 1, "");
+        bool_row(leftPane, rightPane, "One window for all players", SETTING(local_one_window),
+            "The players share one window, each in a quarter of it (side by side with two players), instead of a "
+            "window each. Good for the Steam Deck and a single screen. Select shows or hides the bottom screen. "
+            "Takes effect the next time the game starts.");
 #endif
         bool_row(leftPane, rightPane, "Controllers take party members", SETTING(npc_control),
             "With one window, pressing Start on a second, third or fourth controller takes control of the next "
             "free party member (the computer-controlled characters that follow you), who then moves with that "
-            "controller's left stick. Back gives the character back. Not used in online or wireless games.");
+            "controller's left stick. Holding Back (or Select) gives the character back. Not used in online or wireless games.");
         bool_row(leftPane, rightPane, "Party members use map exits", SETTING(npc_exits),
             "A party member a controller has taken can walk into map exits and entrances (area borders, doors) and "
             "take everyone there, as player 1 can. When off, only player 1 can.");

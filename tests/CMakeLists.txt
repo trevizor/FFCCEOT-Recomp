@@ -55,6 +55,9 @@ add_test(NAME input_script COMMAND test_input_script)
 add_executable(test_spell_ring test_spell_ring.cpp ${PROJECT_SOURCE_DIR}/game/src/spell_ring.cpp)
 target_include_directories(test_spell_ring PRIVATE ${PROJECT_SOURCE_DIR}/game/src)
 add_test(NAME spell_ring COMMAND test_spell_ring)
+add_executable(test_view_share test_view_share.cpp ${PROJECT_SOURCE_DIR}/game/src/view_share.cpp)
+target_include_directories(test_view_share PRIVATE ${PROJECT_SOURCE_DIR}/game/src)
+add_test(NAME view_share COMMAND test_view_share)
 
 # The update check's release list, version comparison and notes (no network needed).
 add_executable(test_release_info test_release_info.cpp ${PROJECT_SOURCE_DIR}/game/src/release_info.cpp)

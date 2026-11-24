@@ -102,7 +102,7 @@ Use this to play the normal single-player game with friends on the couch.
 
 1. Connect the gamepads and load a save that has at least one party member (the NPCs that follow you).
 2. Player 1 plays as usual (keyboard or the first gamepad).
-3. On another gamepad press **Start**: it takes the next free party member. Press **Back** to give the member back to the AI.
+3. On another gamepad press **Start**: it takes the next free party member. **Hold Back (about ¾ s)** to give the member back to the AI.
 4. Each extra player controls their party member with:
 
 | Action | Gamepad (default) |
@@ -130,12 +130,19 @@ Related options (all on by default except where noted):
 - **Party members interact (WIP, off by default)**: lets party members talk to townsfolk, shops and crystals. Not working
   reliably yet.
 
-### Option 2: one window per player
+### Option 2: one copy of the game per player
 
-Settings → Local co-op → **Local players** (1–4), or start with `--players <n>`, opens one window per player, tiled on the
-screen. Each window is its own console with its own save (`cfie.sav`, `cfie.p2.sav`, …) and its own controller (player N
-uses the N-th connected gamepad). Players join each other through the game's own multiplayer menus. Only the first
-window writes `settings.ini`, and closing it does not close the others.
+Settings → Local co-op → **Local players** (1–4), or start with `--players <n>`, starts one copy of the game per player.
+Each is its own console with its own save (`cfie.sav`, `cfie.p2.sav`, …) and its own controller (player N uses the N-th
+connected gamepad). Players join each other through the game's own multiplayer menus.
+
+By default (**One window for all players**, or `--one-window`) all players share one window: player 1's game is in the
+top left quarter, player 2's top right, 3 bottom left and 4 bottom right (side by side with two players). This also suits
+the Steam Deck and other single-screen setups. Players 2 to 4 have no window of their own; closing the window closes
+them all. In every player's quarter, **Select** (Back on a gamepad, Right Shift) shows or hides the bottom screen as a
+small picture in the corner. Turn the option off for one window per player, tiled on the screen; only the first
+window then writes `settings.ini`, and closing it does not close the others.
+
 Hotkeys: **F1** (or R + Start on a gamepad) opens the settings menu over the game, which keeps running without input so
 online play stays in sync; **F2** swaps the screens, **F3** shows or hides the picture-in-picture, **F4** moves the side
 screen of the main + side layout, **F5** switches the renderer, **F6/F7** lower or raise the resolution, **F8** cycles

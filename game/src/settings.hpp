@@ -65,6 +65,7 @@ struct Settings {
     int cpu_speed = 4;         // ARM9 clock: 1, 2 or 4 times the DS's
     int camera_distance = cfie::kCameraDistanceDefault;  // percent of the game's field-camera distance
     int local_players = 1;     // 1-4 windows of the game on this PC, each its own console and save (Windows)
+    bool local_one_window = true;  // those players share one window, each in a quarter of it (not with extra windows)
     bool npc_control = true;   // Start on an extra controller takes the next party member (with one window, offline)
     bool npc_exits = true;  // party members a controller has taken can use map exits and entrances
     bool npc_interact = false;  // WIP, does not work yet: party members a controller has taken can talk, shop and use crystals
