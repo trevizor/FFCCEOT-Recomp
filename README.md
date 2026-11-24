@@ -88,7 +88,7 @@ points, slower when it is pushed less; in multiplayer it needs every player on t
 directions). The right stick opens a radial of the six spell gems: point at one, then hold X to cast (the number keys
 1 to 6 do the same). The company logos before the title screen are skipped.
 
-Camera distance is adjustable from 50% to 400% in Settings → Game. Scroll the mouse wheel up or press R3 (right stick
+Camera distance defaults to 200% and is adjustable from 50% to 400% in Settings → Game. Scroll the mouse wheel up or press R3 (right stick
 click) to move closer; scroll down or press L3 (left stick click) to move farther away, in 25% steps. The camera buttons
 can be rebound under Controls, and the wheel can be turned off in Settings → Input.
 
@@ -96,6 +96,10 @@ Local players (Windows): Settings → Game → Local players (1–4, or `--playe
 on the screen. Each window is its own console with its own save (`cfie.sav`, `cfie.p2.sav`, …) and its own controller
 (player N uses the N-th connected gamepad); players join each other through the game's own multiplayer menus. Only
 the first window writes `settings.ini`, and closing it does not close the others.
+
+Controllers for party members (offline, one window): with a party member from a save (an NPC), a gamepad other than
+yours takes it when you press **Start** on it (the next free member), moves it with the left stick, and gives it back
+with **Back**. Settings → Game → "Controllers take party members" turns it off. Not recorded in replays.
 
 Hotkeys: **F1** (or R + Start on a gamepad) opens the settings menu over the game, which keeps running without input so
 online play stays in sync; **F2** swaps the screens, **F3** shows or hides the picture-in-picture, **F4** moves the side

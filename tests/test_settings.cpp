@@ -119,7 +119,7 @@ void test_set_setting() {
     CHECK(s.texture_smoothing == ntr::TextureSmoothing::Smooth);
     CHECK(!set_setting(s, "graphics.texture_smoothing", "blurry"));
     CHECK(s.texture_smoothing == ntr::TextureSmoothing::Smooth);
-    CHECK(s.camera_distance == 100);
+    CHECK(s.camera_distance == 200);
     CHECK(set_setting(s, "game.camera_distance", "50") && s.camera_distance == 50);
     CHECK(set_setting(s, "game.camera_distance", "400") && s.camera_distance == 400);
     CHECK(set_setting(s, "game.camera_distance", "1000") && s.camera_distance == 400);
@@ -129,6 +129,8 @@ void test_set_setting() {
     CHECK(set_setting(s, "game.local_players", "3") && s.local_players == 3);
     CHECK(set_setting(s, "game.local_players", "9") && s.local_players == 4);
     CHECK(set_setting(s, "game.local_players", "0") && s.local_players == 1);
+    CHECK(s.npc_control);
+    CHECK(set_setting(s, "game.npc_control", "false") && !s.npc_control);
     CHECK(!set_setting(s, "no.such_key", "1"));
 }
 
@@ -161,6 +163,11 @@ void test_camera_hook() {
     cfie::camera_distance = 100;
     cfie_camera_distance(&cpu);
     CHECK(int32_t(ntr_rd32(&cpu, 0x100)) == -300);
+    cfie::camera_distance = 200;
+    cfie_camera_distance(&cpu);
+    CHECK(int32_t(ntr_rd32(&cpu, 0x100)) == -700);
+    ntr_wr32(&cpu, 0x100, uint32_t(-300));
+    ntr_wr32(&cpu, 0x104, 200);
     cfie::camera_distance = 400;
     cpu.r[14] = 0x02054603;
     cfie_camera_distance(&cpu);

@@ -208,6 +208,7 @@ public:
         audio_ = nullptr;
         if (gamepad_) SDL_CloseGamepad(gamepad_);
         gamepad_ = nullptr;
+        close_extra_pads();
         presenter_.shutdown();
     }
 
@@ -436,6 +437,7 @@ private:
         // (SDL_PeepEvents takes what the main thread has pumped; SDL_PollEvent would pump from this thread.)
         SDL_Event e;
         while (SDL_PeepEvents(&e, 1, SDL_GETEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) > 0) {
+            if (from_extra_pad(e)) continue;  // (those controllers drive party members, not the menus or this player)
             if (!handle_common_event(e)) return false;
             if (window_hotkey(e)) continue;
             ui::handle_event(e);
@@ -764,6 +766,7 @@ private:
         cfie::online_buffer = settings.online_buffer;
         cfie::fast_saving = settings.fast_saving;
         cfie::camera_distance = settings.camera_distance;
+        cfie::npc_control = settings.npc_control && players == 1;
         title_dirty_ = true;
     }
 
@@ -1042,6 +1045,8 @@ private:
         }
         script_analog(stick);
         cfie::stick = stick;
+        update_npc_pads(dead, input_hold_ || exclusive);
+        script_npc();
         cfie::analog_movement = c.analog_movement;
         b &= ~(1u << 31);
         if (exclusive) presses_ = 0;
@@ -1130,6 +1135,102 @@ private:
             view.y = r.h > 2 * reach ? r.y + reach + (r.h - 2 * reach) * c.spell_ring_y / 100.0f : r.y + r.h / 2;
         }
         ui::set_spell_ring(view);
+    }
+
+    // Game thread. The controllers that take party members (see cfie_npc_input): opens the extra ones, and gives Start
+    // and Back their meaning. Called once per input tick; sets cfie::npc_input.
+    void update_npc_pads(float dead, bool paused) {
+        for (int& t : cfie::npc_idle_ticks) t = std::min(t + 1, 1000);
+        if (!cfie::npc_control) {
+            if (!extra_pads_.empty()) close_extra_pads();
+            return;
+        }
+        int count = 0;
+        SDL_JoystickID* ids = SDL_GetGamepads(&count);
+        const SDL_JoystickID own = gamepad_ ? SDL_GetGamepadID(gamepad_) : 0;
+        for (size_t i = extra_pads_.size(); i-- > 0;) {
+            bool present = false;
+            for (int n = 0; n < count && ids; n++) present |= ids[n] == extra_pads_[i].id;
+            if (present && extra_pads_[i].id != own) continue;
+            SDL_CloseGamepad(extra_pads_[i].pad);
+            extra_pads_.erase(extra_pads_.begin() + long(i));
+        }
+        for (int n = 0; n < count && ids; n++) {
+            const SDL_JoystickID id = ids[n];
+            bool known = id == own;
+            for (const ExtraPad& e : extra_pads_) known |= e.id == id;
+            if (known) continue;
+            if (SDL_Gamepad* pad = SDL_OpenGamepad(id)) extra_pads_.push_back({id, pad});
+        }
+        if (ids) SDL_free(ids);
+
+        for (ExtraPad& e : extra_pads_) {
+            const bool start = SDL_GetGamepadButton(e.pad, SDL_GAMEPAD_BUTTON_START);
+            const bool back = SDL_GetGamepadButton(e.pad, SDL_GAMEPAD_BUTTON_BACK);
+            if (!paused && start && !e.start && e.slot == 0) {
+                for (int slot = 1; slot < 4 && e.slot == 0; slot++) {
+                    bool taken = cfie::npc_idle_ticks[slot] >= kNpcPresentTicks;
+                    for (const ExtraPad& o : extra_pads_) taken |= o.slot == slot;
+                    if (!taken) e.slot = slot;
+                }
+            }
+            if (!paused && back && !e.back) e.slot = 0;
+            e.start = start, e.back = back;
+        }
+        for (int slot = 1; slot < 4; slot++) cfie::npc_input[slot] = {};
+        if (paused) return;
+        for (const ExtraPad& e : extra_pads_) {
+            if (e.slot == 0) continue;
+            float x = SDL_GetGamepadAxis(e.pad, SDL_GAMEPAD_AXIS_LEFTX) / 32767.0f;
+            float y = SDL_GetGamepadAxis(e.pad, SDL_GAMEPAD_AXIS_LEFTY) / 32767.0f;
+            const float length = std::hypot(x, y);
+            if (length > dead) {
+                const float pushed = std::min((length - dead) / (1 - dead), 1.0f);
+                x = x / length * pushed, y = y / length * pushed;
+            } else {
+                x = y = 0;
+            }
+            const auto& bindings = settings.controls;
+            uint16_t buttons = 0;
+            if (input::pad_held(e.pad, bindings.pad[int(input::Action::A)], dead)) buttons |= ntr::KeyA;
+            if (input::pad_held(e.pad, bindings.pad[int(input::Action::B)], dead)) buttons |= ntr::KeyB;
+            cfie::npc_input[e.slot] = {true, x, y, buttons};
+        }
+    }
+
+    bool from_extra_pad(const SDL_Event& e) const {
+        SDL_JoystickID which;
+        if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN || e.type == SDL_EVENT_GAMEPAD_BUTTON_UP) which = e.gbutton.which;
+        else if (e.type == SDL_EVENT_GAMEPAD_AXIS_MOTION) which = e.gaxis.which;
+        else return false;
+        for (const ExtraPad& p : extra_pads_)
+            if (p.id == which) return true;
+        return false;
+    }
+
+    void close_extra_pads() {
+        for (ExtraPad& e : extra_pads_) SDL_CloseGamepad(e.pad);
+        extra_pads_.clear();
+        for (cfie::NpcInput& n : cfie::npc_input) n = {};
+    }
+
+    // --input-script `npc` steps active in the next emulated frame: a party member takes that stick.
+    void script_npc() {
+        const uint64_t f = frames_ + 1;
+        for (const ScriptStep& s : script) {
+            if (s.frame > f) break;
+            if (f >= s.frame + s.frames) continue;
+            if (s.npc_slot > 0) {
+                auto& n = cfie::npc_input[s.npc_slot];
+                n.active = true;
+                n.x = s.npc_x / 100.0f, n.y = s.npc_y / 100.0f;
+            }
+            if (s.npc_button_slot > 0) {
+                auto& n = cfie::npc_input[s.npc_button_slot];
+                n.active = true;
+                n.buttons |= uint16_t(s.npc_buttons);
+            }
+        }
     }
 
     // The left stick from --input-script steps active in the next emulated frame, if any (replacing the real one).
@@ -1354,6 +1455,16 @@ private:
     bool title_dirty_ = false;
     SDL_AudioStream* audio_ = nullptr;
     SDL_Gamepad* gamepad_ = nullptr;
+    // Controllers besides this player's, while they can take party members: Start takes the next free one (slot 1 to 3),
+    // Back gives it back (slot 0).
+    struct ExtraPad {
+        SDL_JoystickID id;
+        SDL_Gamepad* pad;
+        int slot = 0;
+        bool start = false, back = false;
+    };
+    std::vector<ExtraPad> extra_pads_;
+    static constexpr int kNpcPresentTicks = 20;  // input ticks without a step: the party member is not on the field
     ntr::Runtime* runtime_ = nullptr;
     std::chrono::steady_clock::time_point next_frame_;
     double emu_time_ = 0;          // display-rate 3D: when the current emulated frame went on screen (seconds)
@@ -2121,6 +2232,7 @@ int main(int argc, char** argv) {
                 cfie::online_buffer = host.settings.online_buffer;
                 cfie::fast_saving = host.settings.fast_saving;
                 cfie::camera_distance = host.settings.camera_distance;
+                cfie::npc_control = host.settings.npc_control && host.players == 1;
 
                 auto runtime = ntr::Runtime::create(std::move(g.rom), g.module.code(), host, std::move(g.options));
                 if (g.start_other_players) g.start_other_players();

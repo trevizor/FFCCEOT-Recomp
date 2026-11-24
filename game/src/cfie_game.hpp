@@ -28,7 +28,7 @@ extern bool fast_saving;
 extern uint16_t aspect;
 inline constexpr int kCameraDistanceMin = 50;
 inline constexpr int kCameraDistanceMax = 400;
-inline constexpr int kCameraDistanceDefault = 100;
+inline constexpr int kCameraDistanceDefault = 200;
 inline constexpr int kCameraDistanceStep = 25;
 extern int camera_distance;  // percent of the game's distance; set and read on the game thread
 
@@ -46,6 +46,18 @@ struct Stick {
     float x = 0, y = 0;
 };
 extern Stick stick;
+
+// Party members a controller has taken (see cfie_npc_input), by player slot (1 to 3): the controller's stick, as for
+// `stick`. npc_idle_ticks[n] counts the frontend's input ticks since the game last moved the party member in slot n,
+// which is how the frontend knows who is in the party and on the field. Both are read and written on the game thread.
+struct NpcInput {
+    bool active = false;
+    float x = 0, y = 0;
+    uint16_t buttons = 0;  // DS A and B
+};
+extern NpcInput npc_input[4];
+extern int npc_idle_ticks[4];
+extern bool npc_control;  // extra controllers take party members (Start); only with one window
 
 // Menu sounds: asks the game to play its sound effect `id` (its own number for it, as the game's menus pass it). The
 // effect starts at the game's next sound update, on the game's own thread; it is dropped if the game doesn't get there

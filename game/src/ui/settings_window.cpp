@@ -633,6 +633,10 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             "player 2's, and so on), and they play together over local wireless: host or join a game from the "
             "game's own menus as on a DS. Takes effect the next time the game starts.", 1, 4, 1, "");
 #endif
+        bool_row(leftPane, rightPane, "Controllers take party members", SETTING(npc_control),
+            "With one window, pressing Start on a second, third or fourth controller takes control of the next "
+            "free party member (the computer-controlled characters that follow you), who then moves with that "
+            "controller's left stick. Back gives the character back. Not used in online or wireless games.");
         enum_row(
             leftPane, rightPane, "Language", SETTING(language), {0, 1, 2, 3}, {"English", "French", "German", "Spanish"},
             "The language the game plays in. The USA release has English, French and Spanish; the European release "

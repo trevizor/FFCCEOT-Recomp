@@ -19,6 +19,9 @@ AnalogMovement analog_movement = AnalogMovement::SinglePlayer;
 uint16_t aspect = 0x1555;
 int camera_distance = kCameraDistanceDefault;
 Stick stick;
+NpcInput npc_input[4];
+int npc_idle_ticks[4] = {1000, 1000, 1000, 1000};
+bool npc_control = true;
 bool log_sounds = false;
 bool log_movies = false;
 int force_movie = 0;
@@ -38,6 +41,7 @@ struct Addresses {
     uint32_t network_is_online;  // (network): the Wi-Fi Connection is up
     uint32_t card_common;  // the card library's common state (cardi_common)
     uint32_t players;  // the players (572 bytes each; +328: their character)
+    uint32_t input_slots;  // per-slot input records (32 bytes each)
     uint32_t player_present;  // (players, n): player n is in the game
     uint32_t move_yaw;  // (character): the camera's yaw its movement turns by
     uint32_t sin_cos_table;  // FX_SinCosTable_: sin, cos (4.12) per 16 angle units
@@ -59,6 +63,7 @@ constexpr Addresses kUsa = {
     0x020AD998,  // network_is_online
     0x020FEE40,  // card_common
     0x02122E98,  // players
+    0x021218AC,  // input_slots
     0x02099780,  // player_present
     0x02057220,  // move_yaw
     0x020CD780,  // sin_cos_table
@@ -80,6 +85,7 @@ constexpr Addresses kEur = {
     0x020AD9B4,  // network_is_online
     0x020FEE60,  // card_common
     0x02122EB8,  // players
+    0x021218CC,  // input_slots
     0x02099780,  // player_present
     0x02057220,  // move_yaw
     0x020CD79C,  // sin_cos_table
@@ -282,18 +288,12 @@ extern "C" void cfie_apply_input(NtrCpu* c) {
     s.push = s.marked ? uint8_t(std::min(y - 192, int(kFullPush))) : 0;
 }
 
-// 0x02056498: a character's movement (velocity out, buttons, speed, player slot): the D-pad's direction (one of
-// eight, length 1), turned by the camera's yaw, times the speed. Before it, the game speeds the character up over 8
-// ticks while the D-pad is held. With a stick in the player's records the character goes the stick's way instead, at
-// the speed times how far it is pushed. Fixed point only, so every console moves it the same.
-extern "C" int cfie_analog_move(NtrCpu* c) {
-    const int32_t player = int8_t(c->r[3]);
-    const SlotStick* s = moving_stick(player);
-    if (!s || !(c->r[1] & 0xF0)) return 0;
-    const uint32_t out = c->r[0];
-    const int64_t speed = int64_t(int32_t(c->r[2])) * s->push / kFullPush;
+namespace {
+// Writes the movement vector (out) of player slot `player`'s character for a stick at `angle` (256 steps, 0 = down) and
+// `speed`: the direction turned by the camera's yaw, times the speed.
+void write_stick_vector(NtrCpu* c, uint32_t out, int32_t player, uint8_t angle, int64_t speed) {
     // The stick's direction (x = sin, z = cos of its angle), z towards the bottom of the screen (the D-pad's Down).
-    const uint32_t a = uint32_t(s->angle) << 4;
+    const uint32_t a = uint32_t(angle) << 4;
     const int64_t x = int16_t(ntr_rd16(c, A->sin_cos_table + a * 4)), z = int16_t(ntr_rd16(c, A->sin_cos_table + a * 4 + 2));
 
     const uint32_t lr = c->r[14];
@@ -307,8 +307,59 @@ extern "C" int cfie_analog_move(NtrCpu* c) {
     ntr_wr32(c, out, uint32_t((vx * speed + 0x800) >> 12));
     ntr_wr32(c, out + 4, 0);
     ntr_wr32(c, out + 8, uint32_t((vz * speed + 0x800) >> 12));
+}
+// A party member's top speed under a controller (the player's run).
+constexpr int64_t kNpcSpeed = 8960;
+}  // namespace
+
+// 0x02056498: a character's movement (velocity out, buttons, speed, player slot): the D-pad's direction (one of
+// eight, length 1), turned by the camera's yaw, times the speed. Before it, the game speeds the character up over 8
+// ticks while the D-pad is held. With a stick in the player's records the character goes the stick's way instead, at
+// the speed times how far it is pushed. Fixed point only, so every console moves it the same.
+extern "C" int cfie_analog_move(NtrCpu* c) {
+    const int32_t player = int8_t(c->r[3]);
+    const SlotStick* s = moving_stick(player);
+    if (!s || !(c->r[1] & 0xF0)) return 0;
+    write_stick_vector(c, c->r[0], player, s->angle, int64_t(int32_t(c->r[2])) * s->push / kFullPush);
     c->r[0] = 1;
     return 1;
+}
+
+// 0x02093DE8 converts a slot's DS buttons to held, pressed and released action bits.
+extern "C" void cfie_npc_buttons(NtrCpu* c) {
+    const uint32_t base = A->input_slots + 12;
+    if (c->r[0] < base) return;
+    const uint32_t offset = c->r[0] - base;
+    if (offset % 32 != 0) return;
+    const uint32_t slot = offset / 32;
+    if (slot < 1 || slot > 3 || !cfie::npc_input[slot].active || ntr_rd8(c, A->network + 2) != 0) return;
+    c->r[2] = cfie::npc_input[slot].buttons;
+}
+
+// 0x0206DE94 (a character's state machine runs its current state: r0 = the character's controller, r1 = the tick's input,
+// whose +4 vector says where it is asked to go): a party member a controller has taken (cfie::npc_input) gets that
+// controller's stick there instead of the game's AI's, turned by the camera as the player's own. The state does the rest
+// (it runs, turns, animates and collides as the player does). Only offline: in a session every console must agree.
+extern "C" void cfie_npc_input(NtrCpu* c) {
+    const uint32_t character = ntr_rd32(c, c->r[0] + 20);
+    const int32_t slot = int8_t(ntr_rd8(c, character + 172));
+    if (slot < 1 || slot > 3 || ntr_rd32(c, A->players + 572 * uint32_t(slot) + 328) != character) return;
+    cfie::npc_idle_ticks[slot] = 0;
+    const cfie::NpcInput& in = cfie::npc_input[slot];
+    if (!in.active || ntr_rd8(c, A->network + 2) != 0) return;
+    const float length = std::min(std::hypot(in.x, in.y), 1.0f);
+    uint8_t angle = 0;
+    int64_t speed = 0;
+    if (length > 0) {
+        angle = uint8_t(std::lround(std::atan2(in.x, in.y) * (128 / 3.14159265358979)) & 0xFF);
+        speed = int64_t(std::lround(length * kFullPush)) * kNpcSpeed / kFullPush;
+    }
+    const uint32_t lr = c->r[14], r0 = c->r[0], r1 = c->r[1], r2 = c->r[2], r3 = c->r[3];
+    // Mode 1 faces the movement vector; the AI's mode 2 faces its target instead.
+    ntr_wr8(c, r1, 1);
+    // All controlled party members share the main player's view, not their AI camera.
+    write_stick_vector(c, r1 + 4, 0, angle, speed);
+    c->r[0] = r0, c->r[1] = r1, c->r[2] = r2, c->r[3] = r3, c->r[14] = lr;
 }
 
 // 0x0206F1BC: how far a player character's animation (r0, +8 +20: the character) goes in a tick (4.12). The run has
@@ -330,7 +381,7 @@ extern "C" void cfie_perspective_aspect(NtrCpu* c) {
 
 // Only the field camera's look-at call: other callers include the title and character creation.
 extern "C" void cfie_camera_distance(NtrCpu* c) {
-    if (c->r[14] != 0x0208468F || cfie::camera_distance == cfie::kCameraDistanceDefault) return;
+    if (c->r[14] != 0x0208468F || cfie::camera_distance == 100) return;
     const uint32_t eye = c->r[0], target = c->r[2];
     for (uint32_t axis = 0; axis < 12; axis += 4) {
         const int32_t e = int32_t(ntr_rd32(c, eye + axis));
@@ -427,6 +478,8 @@ void* cfie::find_hook(const char* name) {
         {"cfie_pack_input", reinterpret_cast<void*>(&cfie_pack_input)},
         {"cfie_apply_input", reinterpret_cast<void*>(&cfie_apply_input)},
         {"cfie_analog_move", reinterpret_cast<void*>(&cfie_analog_move)},
+        {"cfie_npc_buttons", reinterpret_cast<void*>(&cfie_npc_buttons)},
+        {"cfie_npc_input", reinterpret_cast<void*>(&cfie_npc_input)},
         {"cfie_perspective_aspect", reinterpret_cast<void*>(&cfie_perspective_aspect)},
         {"cfie_camera_distance", reinterpret_cast<void*>(&cfie_camera_distance)},
         {"cfie_player_animation_step", reinterpret_cast<void*>(&cfie_player_animation_step)},

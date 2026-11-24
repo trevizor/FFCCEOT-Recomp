@@ -24,6 +24,12 @@ target_include_directories(test_settings PRIVATE ${PROJECT_SOURCE_DIR}/game/src)
 target_link_libraries(test_settings PRIVATE ntr_runtime ntr_common SDL3::SDL3-static)
 add_test(NAME settings COMMAND test_settings)
 
+add_executable(test_npc_control test_npc_control.cpp ${PROJECT_SOURCE_DIR}/game/src/cfie_hooks.cpp)
+target_compile_definitions(test_npc_control PRIVATE NTR_GAME_MODULE)
+target_include_directories(test_npc_control PRIVATE ${PROJECT_SOURCE_DIR}/game/src)
+target_link_libraries(test_npc_control PRIVATE ntr_runtime ntr_common)
+add_test(NAME npc_control COMMAND test_npc_control)
+
 # The UI on its own: first run, prelaunch and the settings tabs; any "ui:" warning fails it (tests/ui_smoke.cmake).
 if(TARGET ffcc)
   add_test(NAME ui_smoke COMMAND ${CMAKE_COMMAND} -DFFCC=$<TARGET_FILE:ffcc> -DSCRIPT=${CMAKE_CURRENT_SOURCE_DIR}/ui_smoke.txt
