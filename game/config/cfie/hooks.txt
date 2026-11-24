@@ -42,6 +42,7 @@ main 02082a40 instead cfie_pack_input
 main 020af120 before cfie_apply_input
 main 02056498 instead cfie_analog_move
 main 02093de8 before cfie_npc_buttons
+main 02073670 instead cfie_npc_ai
 main 0206de94 before cfie_npc_input
 main 0206f1bc instead cfie_player_animation_step
 

@@ -56,6 +56,7 @@ struct NpcInput {
     uint16_t buttons = 0;  // DS A and B
 };
 extern NpcInput npc_input[4];
+extern bool npc_buttons_read[4];
 extern int npc_idle_ticks[4];
 extern bool npc_control;  // extra controllers take party members (Start); only with one window
 

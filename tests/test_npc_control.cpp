@@ -6,6 +6,8 @@
 #include "ntr/recomp.h"
 
 extern "C" void cfie_npc_input(NtrCpu* c);
+extern "C" void cfie_npc_buttons(NtrCpu* c);
+extern "C" int cfie_npc_ai(NtrCpu* c);
 NtrHostApi ntr_host{};
 
 namespace {
@@ -68,7 +70,33 @@ void test_npc_input() {
     ntr_wr8(&cpu, kNetwork + 2, 2);
     cfie_npc_input(&cpu);
     CHECK(ntr_rd32(&cpu, kInput) == 0x02060002 && yaw_character == 0);
+
+    ntr_wr8(&cpu, kNetwork + 2, 0);
+    cfie::npc_input[1].buttons = 3;
+    cpu.r[0] = 0x021218AC + 32 + 12;
+    cpu.r[2] = 0;
+    cfie_npc_buttons(&cpu);
+    CHECK(cpu.r[2] == 3);
+    CHECK(cfie::npc_buttons_read[1]);
+    cpu.r[0] = 0x021218AC + 12;
+    cpu.r[2] = 7;
+    cfie_npc_buttons(&cpu);
+    CHECK(cpu.r[2] == 7);
+    cpu.r[0] += 32;
+    ntr_wr8(&cpu, kNetwork + 2, 2);
+    cfie_npc_buttons(&cpu);
+    CHECK(cpu.r[2] == 7);
+    cpu.r[0] = kController;
+    ntr_wr32(&cpu, kController + 28, kNpc);
+    CHECK(cfie_npc_ai(&cpu) == 0);
+    ntr_wr8(&cpu, kNetwork + 2, 0);
+    CHECK(cfie_npc_ai(&cpu) == 1);
+    ntr_wr32(&cpu, kController + 28, kLeader);
+    ntr_wr8(&cpu, kLeader + 172, 0);
+    CHECK(cfie_npc_ai(&cpu) == 0);
+    ntr_wr32(&cpu, kController + 28, kNpc);
     cfie::npc_input[1] = {};
+    CHECK(cfie_npc_ai(&cpu) == 0);
 }
 }  // namespace
 

@@ -20,6 +20,7 @@ uint16_t aspect = 0x1555;
 int camera_distance = kCameraDistanceDefault;
 Stick stick;
 NpcInput npc_input[4];
+bool npc_buttons_read[4] = {};
 int npc_idle_ticks[4] = {1000, 1000, 1000, 1000};
 bool npc_control = true;
 bool log_sounds = false;
@@ -334,6 +335,15 @@ extern "C" void cfie_npc_buttons(NtrCpu* c) {
     const uint32_t slot = offset / 32;
     if (slot < 1 || slot > 3 || !cfie::npc_input[slot].active || ntr_rd8(c, A->network + 2) != 0) return;
     c->r[2] = cfie::npc_input[slot].buttons;
+    cfie::npc_buttons_read[slot] = true;
+}
+
+// 0x02073670 runs the companion's AI decisions before the character state update.
+extern "C" int cfie_npc_ai(NtrCpu* c) {
+    const uint32_t character = ntr_rd32(c, c->r[0] + 28);
+    const int32_t slot = int8_t(ntr_rd8(c, character + 172));
+    if (slot < 1 || slot > 3 || ntr_rd32(c, A->players + 572 * uint32_t(slot) + 328) != character) return 0;
+    return cfie::npc_input[slot].active && ntr_rd8(c, A->network + 2) == 0;
 }
 
 // 0x0206DE94 (a character's state machine runs its current state: r0 = the character's controller, r1 = the tick's input,
@@ -479,6 +489,7 @@ void* cfie::find_hook(const char* name) {
         {"cfie_apply_input", reinterpret_cast<void*>(&cfie_apply_input)},
         {"cfie_analog_move", reinterpret_cast<void*>(&cfie_analog_move)},
         {"cfie_npc_buttons", reinterpret_cast<void*>(&cfie_npc_buttons)},
+        {"cfie_npc_ai", reinterpret_cast<void*>(&cfie_npc_ai)},
         {"cfie_npc_input", reinterpret_cast<void*>(&cfie_npc_input)},
         {"cfie_perspective_aspect", reinterpret_cast<void*>(&cfie_perspective_aspect)},
         {"cfie_camera_distance", reinterpret_cast<void*>(&cfie_camera_distance)},

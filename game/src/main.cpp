@@ -33,6 +33,7 @@
 #include "game_module.hpp"
 #include "report.hpp"
 #include "input.hpp"
+#include "input_latch.hpp"
 #include "input_script.hpp"
 #include "spell_ring.hpp"
 #include "main_thread.hpp"
@@ -1171,15 +1172,26 @@ private:
                 for (int slot = 1; slot < 4 && e.slot == 0; slot++) {
                     bool taken = cfie::npc_idle_ticks[slot] >= kNpcPresentTicks;
                     for (const ExtraPad& o : extra_pads_) taken |= o.slot == slot;
-                    if (!taken) e.slot = slot;
+                    if (!taken) {
+                        e.slot = slot;
+                        cfie::npc_buttons_read[slot] = false;
+                    }
                 }
             }
             if (!paused && back && !e.back) e.slot = 0;
             e.start = start, e.back = back;
+            if (paused || e.slot == 0) {
+                e.latch = {};
+                e.presses = 0;
+                e.frames_unread = 0;
+            }
         }
         for (int slot = 1; slot < 4; slot++) cfie::npc_input[slot] = {};
-        if (paused) return;
-        for (const ExtraPad& e : extra_pads_) {
+        if (paused) {
+            std::fill(std::begin(cfie::npc_buttons_read), std::end(cfie::npc_buttons_read), false);
+            return;
+        }
+        for (ExtraPad& e : extra_pads_) {
             if (e.slot == 0) continue;
             float x = SDL_GetGamepadAxis(e.pad, SDL_GAMEPAD_AXIS_LEFTX) / 32767.0f;
             float y = SDL_GetGamepadAxis(e.pad, SDL_GAMEPAD_AXIS_LEFTY) / 32767.0f;
@@ -1194,17 +1206,30 @@ private:
             uint16_t buttons = 0;
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::A)], dead)) buttons |= ntr::KeyA;
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::B)], dead)) buttons |= ntr::KeyB;
-            cfie::npc_input[e.slot] = {true, x, y, buttons};
+            const bool read = cfie::npc_buttons_read[e.slot] || ++e.frames_unread >= 30;
+            if (read) e.frames_unread = 0;
+            cfie::npc_buttons_read[e.slot] = false;
+            const uint16_t latched = uint16_t(e.latch.step(buttons, e.presses, read));
+            e.presses = 0;
+            cfie::npc_input[e.slot] = {true, x, y, latched};
         }
     }
 
-    bool from_extra_pad(const SDL_Event& e) const {
+    bool from_extra_pad(const SDL_Event& e) {
         SDL_JoystickID which;
         if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN || e.type == SDL_EVENT_GAMEPAD_BUTTON_UP) which = e.gbutton.which;
         else if (e.type == SDL_EVENT_GAMEPAD_AXIS_MOTION) which = e.gaxis.which;
         else return false;
-        for (const ExtraPad& p : extra_pads_)
-            if (p.id == which) return true;
+        for (ExtraPad& p : extra_pads_) {
+            if (p.id != which) continue;
+            if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN && p.slot != 0 && !input_hold_ &&
+                !ui::any_document_visible() && (script.empty() || mix_real_input)) {
+                const auto button = input::PadInput::button(SDL_GamepadButton(e.gbutton.button));
+                if (settings.controls.pad[int(input::Action::A)] == button) p.presses |= ntr::KeyA;
+                if (settings.controls.pad[int(input::Action::B)] == button) p.presses |= ntr::KeyB;
+            }
+            return true;
+        }
         return false;
     }
 
@@ -1212,6 +1237,7 @@ private:
         for (ExtraPad& e : extra_pads_) SDL_CloseGamepad(e.pad);
         extra_pads_.clear();
         for (cfie::NpcInput& n : cfie::npc_input) n = {};
+        std::fill(std::begin(cfie::npc_buttons_read), std::end(cfie::npc_buttons_read), false);
     }
 
     // --input-script `npc` steps active in the next emulated frame: a party member takes that stick.
@@ -1462,6 +1488,9 @@ private:
         SDL_Gamepad* pad;
         int slot = 0;
         bool start = false, back = false;
+        ntr::InputLatch latch;
+        uint32_t presses = 0;
+        int frames_unread = 0;
     };
     std::vector<ExtraPad> extra_pads_;
     static constexpr int kNpcPresentTicks = 20;  // input ticks without a step: the party member is not on the field
