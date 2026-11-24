@@ -66,6 +66,7 @@ struct Settings {
     int camera_distance = cfie::kCameraDistanceDefault;  // percent of the game's field-camera distance
     int local_players = 1;     // 1-4 windows of the game on this PC, each its own console and save (Windows)
     bool npc_control = true;   // Start on an extra controller takes the next party member (with one window, offline)
+    bool npc_exits = true;  // party members a controller has taken can use map exits and entrances
     bool dynamic_camera = true;  // with several players, the camera frames them all (zoom 2x to 4x)
     // Online
     std::string console_name;  // the console's name other players see (a DS nickname, 10 characters); empty: this PC's

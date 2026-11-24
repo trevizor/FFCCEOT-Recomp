@@ -8,6 +8,7 @@
 extern "C" void cfie_npc_input(NtrCpu* c);
 extern "C" void cfie_npc_buttons(NtrCpu* c);
 extern "C" int cfie_npc_ai(NtrCpu* c);
+extern "C" int cfie_exit_check_player(NtrCpu* c);
 extern "C" int cfie_analog_move(NtrCpu* c);
 NtrHostApi ntr_host{};
 
@@ -226,9 +227,37 @@ void test_npc_input() {
     CHECK(cfie::select_release("CFIE"));
     cfie::npc_input[1] = {};
 }
+
+void test_exit_check_player() {
+    std::vector<uint32_t> memory(0x400000 / 4);
+    std::vector<uint8_t*> pages(0x02400000 >> NTR_PAGE_SHIFT);
+    for (uint32_t i = 0; i < 0x400000 / 4096; ++i)
+        pages[(kBase >> NTR_PAGE_SHIFT) + i] = reinterpret_cast<uint8_t*>(memory.data()) + i * 4096;
+    NtrCpu cpu{};
+    cpu.read_pages = pages.data();
+    cpu.write_pages = pages.data();
+    cfie::npc_input[1] = {true, 0, 0};
+    cfie::npc_exits = true;
+    auto ask = [&](uint32_t lr, uint32_t slot) {
+        cpu.r[0] = 0;
+        cpu.r[4] = slot;
+        cpu.r[14] = lr;
+        return cfie_exit_check_player(&cpu);
+    };
+    CHECK(ask(0x0206B60D, 1) == 1 && cpu.r[0] == 1);  // a controlled party member counts as in a multiplayer game
+    CHECK(ask(0x0206B60D, 0) == 0 && ask(0x0206B60D, 2) == 0);  // the main player and AI members: unchanged
+    CHECK(ask(0x0206C8EF, 1) == 0);  // other callers of the check
+    cfie::npc_exits = false;
+    CHECK(ask(0x0206B60D, 1) == 0);
+    cfie::npc_exits = true;
+    ntr_wr8(&cpu, kNetwork + 2, 2);
+    CHECK(ask(0x0206B60D, 1) == 0);
+    cfie::npc_input[1] = {};
+}
 }  // namespace
 
 int main() {
     test_npc_input();
+    test_exit_check_player();
     return failures ? 1 : 0;
 }

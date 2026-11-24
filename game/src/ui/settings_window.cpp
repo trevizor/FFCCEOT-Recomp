@@ -76,7 +76,7 @@ bool is_experimental(const Rml::String& key) {
     static const char* const kRows[] = {"Aspect ratio", "HUD position", "HUD size", "3D frame rate", "Frame pacing",
                                         "Frame rate limit", "Stable textures", "Texture smoothing", "Analog movement",
                                         "Console name", "Wi-Fi Connection server", "DNS server address", "Input buffer",
-                                        "Camera distance", "Dynamic camera"};
+                                        "Camera distance", "Dynamic camera", "Party members use map exits"};
     return std::find(std::begin(kRows), std::end(kRows), key) != std::end(kRows);
 }
 
@@ -663,6 +663,9 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             "With one window, pressing Start on a second, third or fourth controller takes control of the next "
             "free party member (the computer-controlled characters that follow you), who then moves with that "
             "controller's left stick. Back gives the character back. Not used in online or wireless games.");
+        bool_row(leftPane, rightPane, "Party members use map exits", SETTING(npc_exits),
+            "A party member a controller has taken can walk into map exits and entrances (area borders, doors) and "
+            "take everyone there, as player 1 can. When off, only player 1 can.");
 
         leftPane.add_section("Camera");
         bool_row(leftPane, rightPane, "Dynamic camera", SETTING(dynamic_camera),

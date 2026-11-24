@@ -134,6 +134,8 @@ void test_set_setting() {
     CHECK(set_setting(s, "game.npc_control", "false") && !s.npc_control);
     CHECK(s.dynamic_camera);
     CHECK(set_setting(s, "game.dynamic_camera", "false") && !s.dynamic_camera);
+    CHECK(s.npc_exits);
+    CHECK(set_setting(s, "game.npc_exits", "false") && !s.npc_exits);
     CHECK(!set_setting(s, "no.such_key", "1"));
 }
 

@@ -19,6 +19,7 @@ AnalogMovement analog_movement = AnalogMovement::SinglePlayer;
 uint16_t aspect = 0x1555;
 int camera_distance = kCameraDistanceDefault;
 bool dynamic_camera = true;
+bool npc_exits = true;
 
 CameraFraming frame_players(const float eye[3], const float target[3], const float (*players)[3], int count,
                             float tan_half_fov, float aspect) {
@@ -423,6 +424,19 @@ extern "C" int cfie_npc_ai(NtrCpu* c) {
     return cfie::npc_input[slot].active && ntr_rd8(c, A->network + 2) == 0;
 }
 
+// 0x0206C8DC (whether this is a multiplayer game), called by the field's exit check (0x0206B5CC) at 0x0206B60D with
+// r4 = the player slot it looks at. In a one-player game the check only looks at the main player; a party member a
+// controller has taken is let through as in a multiplayer game, so it can use map exits and entrances too.
+extern "C" int cfie_exit_check_player(NtrCpu* c) {
+    constexpr uint32_t kExitCheckCall = 0x0206B60D;
+    const uint32_t slot = c->r[4];
+    if (c->r[14] != kExitCheckCall || !cfie::npc_exits || slot < 1 || slot > 3 || !cfie::npc_input[slot].active ||
+        ntr_rd8(c, A->network + 2) != 0)
+        return 0;
+    c->r[0] = 1;
+    return 1;
+}
+
 // 0x0206DE94 (a character's state machine runs its current state: r0 = the character's controller, r1 = the tick's input,
 // whose +4 vector says where it is asked to go): a party member a controller has taken (cfie::npc_input) gets that
 // controller's stick there instead of the game's AI's, turned by the camera as the player's own. The state does the rest
@@ -692,6 +706,7 @@ void* cfie::find_hook(const char* name) {
         {"cfie_npc_buttons", reinterpret_cast<void*>(&cfie_npc_buttons)},
         {"cfie_npc_ai", reinterpret_cast<void*>(&cfie_npc_ai)},
         {"cfie_npc_input", reinterpret_cast<void*>(&cfie_npc_input)},
+        {"cfie_exit_check_player", reinterpret_cast<void*>(&cfie_exit_check_player)},
         {"cfie_perspective_aspect", reinterpret_cast<void*>(&cfie_perspective_aspect)},
         {"cfie_camera_distance", reinterpret_cast<void*>(&cfie_camera_distance)},
         {"cfie_player_animation_step", reinterpret_cast<void*>(&cfie_player_animation_step)},

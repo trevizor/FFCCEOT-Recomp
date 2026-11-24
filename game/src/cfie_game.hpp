@@ -31,6 +31,7 @@ inline constexpr int kCameraDistanceMax = 400;
 inline constexpr int kCameraDistanceDefault = 200;
 inline constexpr int kCameraDistanceStep = 25;
 extern int camera_distance;  // percent of the game's distance; set and read on the game thread
+extern bool npc_exits;  // controlled party members trigger map exits and entrances
 extern bool dynamic_camera;  // with several players the camera frames them all, 2x to 4x the game's distance
 inline constexpr int kDynamicCameraMin = 200;
 inline constexpr int kDynamicCameraMax = 400;
