@@ -70,7 +70,7 @@ private:
     std::vector<uint8_t> post_;
     std::vector<melonDS::Vertex> real_vertices_;
     std::vector<melonDS::Polygon> real_polygons_;
-    std::array<melonDS::Polygon*, 2048> real_list_{};
+    std::array<melonDS::Polygon*, melonDS::FFCC_MAX_POLYGONS> real_list_{};
     uint32_t real_count_ = 0, real_bank_ = 0;
     bool restore_pending_ = false;
 

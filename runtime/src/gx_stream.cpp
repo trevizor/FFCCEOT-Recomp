@@ -156,10 +156,10 @@ void Streams::replay(const Scene& scene, const std::vector<Entry>& entries) {
     // the bank the engine is no longer building in).
     save_state(g_, post_);
     real_bank_ = g_.CurRAMBank ? 0 : 1;
-    melonDS::Vertex* vram = &g_.VertexRAM[real_bank_ ? 6144 : 0];
-    melonDS::Polygon* pram = &g_.PolygonRAM[real_bank_ ? 2048 : 0];
-    real_vertices_.assign(vram, vram + std::min<uint32_t>(scene.num_vertices, 6144));
-    real_polygons_.assign(pram, pram + std::min<uint32_t>(scene.num_polygons, 2048));
+    melonDS::Vertex* vram = &g_.VertexRAM[real_bank_ ? melonDS::FFCC_MAX_VERTICES : 0];
+    melonDS::Polygon* pram = &g_.PolygonRAM[real_bank_ ? melonDS::FFCC_MAX_POLYGONS : 0];
+    real_vertices_.assign(vram, vram + std::min<uint32_t>(scene.num_vertices, melonDS::FFCC_MAX_VERTICES));
+    real_polygons_.assign(pram, pram + std::min<uint32_t>(scene.num_polygons, melonDS::FFCC_MAX_POLYGONS));
     real_list_ = g_.RenderPolygonRAM;
     real_count_ = g_.RenderNumPolygons;
 
@@ -180,7 +180,7 @@ void Streams::replay(const Scene& scene, const std::vector<Entry>& entries) {
     }
     g_.VBlank();
     melonDS::FfccGxReplaying = false;
-    const std::array<melonDS::Polygon*, 2048> list = g_.RenderPolygonRAM;
+    const std::array<melonDS::Polygon*, melonDS::FFCC_MAX_POLYGONS> list = g_.RenderPolygonRAM;
     const uint32_t count = g_.RenderNumPolygons;
 
     load_state(g_, post_);
@@ -192,8 +192,8 @@ void Streams::replay(const Scene& scene, const std::vector<Entry>& entries) {
 }
 
 void Streams::restore_real() {
-    std::copy(real_vertices_.begin(), real_vertices_.end(), &g_.VertexRAM[real_bank_ ? 6144 : 0]);
-    std::copy(real_polygons_.begin(), real_polygons_.end(), &g_.PolygonRAM[real_bank_ ? 2048 : 0]);
+    std::copy(real_vertices_.begin(), real_vertices_.end(), &g_.VertexRAM[real_bank_ ? melonDS::FFCC_MAX_VERTICES : 0]);
+    std::copy(real_polygons_.begin(), real_polygons_.end(), &g_.PolygonRAM[real_bank_ ? melonDS::FFCC_MAX_POLYGONS : 0]);
     g_.RenderPolygonRAM = real_list_;
     g_.RenderNumPolygons = real_count_;
     g_.RenderFrameIdentical = false;  // render it again: the last frame showed the replayed list

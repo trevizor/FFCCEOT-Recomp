@@ -25,7 +25,40 @@ set(MELONDS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/melonDS)
 if(NOT EXISTS ${MELONDS_DIR}/src/NDS.cpp)
   message(FATAL_ERROR "third_party/melonDS is missing: run `git submodule update --init --recursive`")
 endif()
-set(MS ${MELONDS_DIR}/src)
+set(MS_ORIG ${MELONDS_DIR}/src)
+
+# A larger geometry engine. The DS has room for 2048 polygons and 6144 vertices a scene, and a scene that runs out of it
+# loses its last polygons (the characters and objects, drawn last), which flickers when the camera is pulled back and
+# more of the map is in view. The sizes are in headers that every melonDS file includes, so the whole source tree is
+# copied to the build directory (a file the compiler finds next to the includer wins over the include path, so patched
+# headers cannot just be put in front) and those headers are patched in the copy. FFCC_POLY_SCALE multiplies the room.
+set(FFCC_POLY_SCALE 4)
+math(EXPR FFCC_MAX_POLYGONS "2048 * ${FFCC_POLY_SCALE}")
+math(EXPR FFCC_MAX_VERTICES "6144 * ${FFCC_POLY_SCALE}")
+set(MS ${CMAKE_CURRENT_BINARY_DIR}/melonds_src)
+file(COPY ${MS_ORIG}/ DESTINATION ${MS} REGEX "/(GPU3D|GPU3D_OpenGL|GPU3D_Soft)\\.h$" EXCLUDE)
+
+file(READ ${MS_ORIG}/GPU3D.h gpu3d_h)
+string(REPLACE "\r\n" "\n" gpu3d_h "${gpu3d_h}")
+ffcc_patch(gpu3d_h GPU3D.h "    Vertex VertexRAM[6144 * 2] {};\n    Polygon PolygonRAM[2048 * 2] {};\n"
+  "    Vertex VertexRAM[FFCC_MAX_VERTICES * 2] {}; // ffcc patch\n    Polygon PolygonRAM[FFCC_MAX_POLYGONS * 2] {};\n")
+ffcc_patch(gpu3d_h GPU3D.h "std::array<Polygon*,2048> RenderPolygonRAM {};" "std::array<Polygon*,FFCC_MAX_POLYGONS> RenderPolygonRAM {}; // ffcc patch")
+ffcc_patch(gpu3d_h GPU3D.h "namespace melonDS\n{\n"
+  "namespace melonDS\n{\n// ffcc patch: the room for polygons and vertices (the DS has 2048 and 6144), see third_party/CMakeLists.txt\nconstexpr int FFCC_MAX_POLYGONS = ${FFCC_MAX_POLYGONS};\nconstexpr int FFCC_MAX_VERTICES = ${FFCC_MAX_VERTICES};\n")
+ffcc_write_patched(gpu3d_h ${MS}/GPU3D.h)
+
+file(READ ${MS_ORIG}/GPU3D_OpenGL.h gpu3d_gl_h)
+string(REPLACE "\r\n" "\n" gpu3d_gl_h "${gpu3d_gl_h}")
+ffcc_patch(gpu3d_gl_h GPU3D_OpenGL.h "RendererPolygon PolygonList[2048] {};" "RendererPolygon PolygonList[FFCC_MAX_POLYGONS] {}; // ffcc patch")
+ffcc_patch(gpu3d_gl_h GPU3D_OpenGL.h "u32 VertexBuffer[10240 * 7] {};" "u32 VertexBuffer[(10240 + FFCC_MAX_VERTICES - 6144) * 7] {}; // ffcc patch")
+ffcc_patch(gpu3d_gl_h GPU3D_OpenGL.h "u16 IndexBuffer[2048 * 40] {};" "u16 IndexBuffer[FFCC_MAX_POLYGONS * 40] {}; // ffcc patch")
+ffcc_patch(gpu3d_gl_h GPU3D_OpenGL.h "EdgeIndicesOffset = 2048 * 30;" "EdgeIndicesOffset = FFCC_MAX_POLYGONS * 30; // ffcc patch")
+ffcc_write_patched(gpu3d_gl_h ${MS}/GPU3D_OpenGL.h)
+
+file(READ ${MS_ORIG}/GPU3D_Soft.h gpu3d_soft_h)
+string(REPLACE "\r\n" "\n" gpu3d_soft_h "${gpu3d_soft_h}")
+ffcc_patch(gpu3d_soft_h GPU3D_Soft.h "RendererPolygon PolygonList[2048];" "RendererPolygon PolygonList[FFCC_MAX_POLYGONS]; // ffcc patch")
+ffcc_write_patched(gpu3d_soft_h ${MS}/GPU3D_Soft.h)
 
 # GPU3D.cpp: hooks that see every GX command the geometry engine executes and every VBlank (for frame interpolation,
 # which records each scene's command stream and swaps in a blended polygon list), and a replay mode in which the
@@ -68,6 +101,10 @@ ffcc_patch(gpu3d_src GPU3D.cpp "#include <algorithm>\n"
   "#include <algorithm>\n#include <cmath>\n")
 ffcc_patch(gpu3d_src GPU3D.cpp "bool FfccGxReplaying = false;\n"
   "bool FfccGxReplaying = false;\nint FfccStableUV = 0; // ffcc patch\nint FfccSmoothTex = 0; // ffcc patch\nstatic bool ffcc_subdividing = false;\nstatic int ffcc_added_p = 0, ffcc_added_v = 0, ffcc_base_p = 0, ffcc_base_v = 0, ffcc_last_p = 0, ffcc_last_v = 0;\n#define FFCC_UV_GRID 4\n")
+ffcc_patch(gpu3d_src GPU3D.cpp "    if (NumPolygons >= 2048 || NumVertices+nverts > 6144)\n    {\n" "    if (NumPolygons >= FFCC_MAX_POLYGONS || NumVertices+nverts > FFCC_MAX_VERTICES) // ffcc patch\n    {\n")
+ffcc_patch(gpu3d_src GPU3D.cpp "CurRAMBank ? 6144 : 0" "CurRAMBank ? FFCC_MAX_VERTICES : 0")
+ffcc_patch(gpu3d_src GPU3D.cpp "CurRAMBank ? 2048 : 0" "CurRAMBank ? FFCC_MAX_POLYGONS : 0")
+ffcc_patch(gpu3d_src GPU3D.cpp "for(int i = 0; i < 2048*2; i++)" "for(int i = 0; i < FFCC_MAX_POLYGONS*2; i++)")
 ffcc_write_patched(gpu3d_src ${CMAKE_CURRENT_BINARY_DIR}/melonds_patched/GPU3D.cpp)
 
 # GPU3D_OpenGL.cpp: with FfccWideExtra set, the 3D texture is (256 + 2 * extra) pixels wide (a widescreen picture; the

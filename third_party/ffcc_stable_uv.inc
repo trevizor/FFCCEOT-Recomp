@@ -7,7 +7,7 @@
     // grid of small quads whose corners are the bilinear blend of the four corners (in clip space, which is exact for
     // the bilinear patch in 3D, and in texture space): each small quad is nearly affine, so every rasteriser agrees,
     // and the texture stays on the surface.
-    // Polygon RAM is finite (2048 polygons, 6144 vertices) and a scene that runs out of it loses its last polygons (usually
+    // Polygon RAM is finite (FFCC_MAX_POLYGONS polygons and FFCC_MAX_VERTICES vertices, a few times the console's) and a scene that runs out of it loses its last polygons (usually
     // the characters), so the cuts are budgeted: what the cuts of this scene have added so far, plus what the previous scene
     // (the game draws the same scene again and again) used without them, must leave a margin.
     if (!ffcc_subdividing)
@@ -29,8 +29,8 @@
     }
     if (FfccStableUV && !ffcc_subdividing && (PolygonMode & 0x1) && ((TexParam >> 26) & 0x7) != 0 && ((TexParam >> 26) & 0x7) != 1 && ((TexParam >> 26) & 0x7) != 6 &&
         ((CurPolygonAttr >> 16) & 0x1F) == 31 && ((CurPolygonAttr >> 4) & 0x3) != 3 &&
-        ffcc_added_p + 16 + ffcc_base_p + ffcc_base_p / 8 + 128 <= 2048 &&
-        ffcc_added_v + 52 + ffcc_base_v + ffcc_base_v / 8 + 384 <= 6144 && NumPolygons < 1900 && NumVertices < 5700)
+        ffcc_added_p + 16 + ffcc_base_p + ffcc_base_p / 8 + 128 <= FFCC_MAX_POLYGONS &&
+        ffcc_added_v + 52 + ffcc_base_v + ffcc_base_v / 8 + 384 <= FFCC_MAX_VERTICES && NumPolygons < FFCC_MAX_POLYGONS - 148 && NumVertices < FFCC_MAX_VERTICES - 444)
     {
         const Vertex* q = TempVertexBuffer;
         bool outside = false;
