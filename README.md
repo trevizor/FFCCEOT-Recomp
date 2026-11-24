@@ -113,6 +113,10 @@ selected spell. Settings → Local co-op → "Controllers take party members" tu
 walk into map exits and entrances and take everyone there (Settings → Local co-op → "Party members use map exits", on by
 default). Not recorded in replays.
 
+With one window, every connected controller can also advance dialogue, skip cutscenes and use the menus (Settings →
+Local co-op → "All controllers use menus", on by default). On the field, extra controllers only move their own party
+member.
+
 Hotkeys: **F1** (or R + Start on a gamepad) opens the settings menu over the game, which keeps running without input so
 online play stays in sync; **F2** swaps the screens, **F3** shows or hides the picture-in-picture, **F4** moves the side
 screen of the main + side layout, **F5** switches the renderer, **F6/F7** lower or raise the resolution, **F8** cycles
@@ -124,7 +128,7 @@ to change, shoulders for tabs). The Settings window ends with an **About** tab: 
 
 This is an early build: please report problems from the in-game menu or on the issue tracker.
 
-- **Experimental features** carry a warning icon in the settings: camera distance, dynamic camera, party members using map exits, widescreen and HUD placement, 3D at 60 fps and at your
+- **Experimental features** carry a warning icon in the settings: camera distance, dynamic camera, party members using map exits, all controllers using menus, widescreen and HUD placement, 3D at 60 fps and at your
   display's refresh rate, frame pacing, stable and smoothed textures, analog movement in multiplayer, and everything
   online. They work, but have had less testing.
 - Not done on Linux yet: the crash dialog (logs and problem reports work) and local wireless between instances.

@@ -150,6 +150,8 @@ const Field kFields[] = {
     BOOL_FIELD("game.npc_control", npc_control),
     BOOL_FIELD("game.dynamic_camera", dynamic_camera),
     BOOL_FIELD("game.npc_exits", npc_exits),
+    BOOL_FIELD("game.npc_interact", npc_interact),
+    BOOL_FIELD("game.pads_use_menus", pads_use_menus),
     Field{"game.cpu_speed", [](const Settings& s) { return std::to_string(s.cpu_speed); },
           [](Settings& s, const std::string& v) {
               int n;

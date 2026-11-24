@@ -76,7 +76,8 @@ bool is_experimental(const Rml::String& key) {
     static const char* const kRows[] = {"Aspect ratio", "HUD position", "HUD size", "3D frame rate", "Frame pacing",
                                         "Frame rate limit", "Stable textures", "Texture smoothing", "Analog movement",
                                         "Console name", "Wi-Fi Connection server", "DNS server address", "Input buffer",
-                                        "Camera distance", "Dynamic camera", "Party members use map exits"};
+                                        "Camera distance", "Dynamic camera", "Party members use map exits",
+                                         "Party members interact", "All controllers use menus"};
     return std::find(std::begin(kRows), std::end(kRows), key) != std::end(kRows);
 }
 
@@ -666,6 +667,13 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
         bool_row(leftPane, rightPane, "Party members use map exits", SETTING(npc_exits),
             "A party member a controller has taken can walk into map exits and entrances (area borders, doors) and "
             "take everyone there, as player 1 can. When off, only player 1 can.");
+        bool_row(leftPane, rightPane, "Party members interact", SETTING(npc_interact),
+            "A party member a controller has taken can talk to characters, open shops and use crystals when standing "
+            "next to them, as player 1 can. When off, only player 1 can.");
+        bool_row(leftPane, rightPane, "All controllers use menus", SETTING(pads_use_menus),
+            "With one window, every connected controller can advance dialogue, skip cutscenes and use the game's "
+            "menus, not only the first one. While the game is being played, extra controllers only move their own "
+            "party member.");
 
         leftPane.add_section("Camera");
         bool_row(leftPane, rightPane, "Dynamic camera", SETTING(dynamic_camera),

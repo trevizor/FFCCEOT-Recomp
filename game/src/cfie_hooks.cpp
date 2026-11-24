@@ -20,6 +20,8 @@ uint16_t aspect = 0x1555;
 int camera_distance = kCameraDistanceDefault;
 bool dynamic_camera = true;
 bool npc_exits = true;
+bool pads_use_menus = true;
+bool npc_interact = true;
 
 CameraFraming frame_players(const float eye[3], const float target[3], const float (*players)[3], int count,
                             float tan_half_fov, float aspect) {
@@ -429,10 +431,27 @@ extern "C" int cfie_npc_ai(NtrCpu* c) {
 // controller has taken is let through as in a multiplayer game, so it can use map exits and entrances too.
 extern "C" int cfie_exit_check_player(NtrCpu* c) {
     constexpr uint32_t kExitCheckCall = 0x0206B60D;
+    // The loops over the players of the proximity triggers (talking to characters, shops, crystals): 0x02090EDC and
+    // two in 0x020A6A.. and 0x020A72.. .
+    const uint32_t lr = c->r[14];
+    const bool interact = lr == 0x02090F01 || lr == 0x020A6A79 || lr == 0x020A72D7;
     const uint32_t slot = c->r[4];
-    if (c->r[14] != kExitCheckCall || !cfie::npc_exits || slot < 1 || slot > 3 || !cfie::npc_input[slot].active ||
-        ntr_rd8(c, A->network + 2) != 0)
-        return 0;
+    if (!(lr == kExitCheckCall && cfie::npc_exits) && !(interact && cfie::npc_interact)) return 0;
+    if (slot < 1 || slot > 3 || !cfie::npc_input[slot].active || ntr_rd8(c, A->network + 2) != 0) return 0;
+    c->r[0] = 1;
+    return 1;
+}
+
+// 0x02057AE0 (whether a character is the main player), called by 0x02057AFC at 0x02057B19, which decides whether the
+// character may start a conversation, a shop or use a crystal: a party member a controller has taken counts as one.
+extern "C" int cfie_interact_character(NtrCpu* c) {
+    const uint32_t lr = c->r[14];
+    if ((lr != 0x02057B19 && lr != 0x0208648F && lr != 0x020608FD) || !cfie::npc_interact || ntr_rd8(c, A->network + 2) != 0) return 0;
+    const uint32_t character = c->r[0];
+    if (!character) return 0;
+    const int32_t slot = int8_t(ntr_rd8(c, character + 172));
+    if (slot < 1 || slot > 3 || ntr_rd32(c, A->players + 572 * uint32_t(slot) + 328) != character) return 0;
+    if (!cfie::npc_input[slot].active) return 0;
     c->r[0] = 1;
     return 1;
 }
@@ -707,6 +726,7 @@ void* cfie::find_hook(const char* name) {
         {"cfie_npc_ai", reinterpret_cast<void*>(&cfie_npc_ai)},
         {"cfie_npc_input", reinterpret_cast<void*>(&cfie_npc_input)},
         {"cfie_exit_check_player", reinterpret_cast<void*>(&cfie_exit_check_player)},
+        {"cfie_interact_character", reinterpret_cast<void*>(&cfie_interact_character)},
         {"cfie_perspective_aspect", reinterpret_cast<void*>(&cfie_perspective_aspect)},
         {"cfie_camera_distance", reinterpret_cast<void*>(&cfie_camera_distance)},
         {"cfie_player_animation_step", reinterpret_cast<void*>(&cfie_player_animation_step)},

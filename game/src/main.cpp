@@ -85,7 +85,9 @@ std::map<std::string, std::string> emulation_settings(const Settings& s) {
             {"aspect", std::to_string(int(s.aspect))},
             {"camera_distance", std::to_string(s.camera_distance)},
             {"dynamic_camera", s.dynamic_camera ? "1" : "0"},
-            {"npc_exits", s.npc_exits ? "1" : "0"}};
+            {"npc_exits", s.npc_exits ? "1" : "0"},
+            {"npc_interact", s.npc_interact ? "1" : "0"},
+            {"pads_use_menus", s.pads_use_menus ? "1" : "0"}};
 }
 
 class SdlHost final : public ntr::Host {
@@ -771,6 +773,8 @@ private:
         cfie::camera_distance = settings.camera_distance;
         cfie::dynamic_camera = settings.dynamic_camera;
         cfie::npc_exits = settings.npc_exits;
+        cfie::pads_use_menus = settings.pads_use_menus;
+        cfie::npc_interact = settings.npc_interact;
         cfie::npc_control = settings.npc_control && players == 1;
         title_dirty_ = true;
     }
@@ -1013,6 +1017,7 @@ private:
             ly = SDL_GetGamepadAxis(gamepad_, SDL_GAMEPAD_AXIS_LEFTY) / 32767.0f;
         }
         script_stick(lx, ly);
+        if (!exclusive) b |= extra_pad_buttons(c, dead);
         cfie::Stick stick;
         if (const float length = std::hypot(lx, ly); length > dead) {
             const float diagonal = 0.38268343f * length;  // sin(22.5 degrees)
@@ -1099,6 +1104,7 @@ private:
             ry = SDL_GetGamepadAxis(gamepad_, SDL_GAMEPAD_AXIS_RIGHTY) / 32767.0f;
         }
         const bool live = ring_ticks_ != 0 && f - ring_tick_frame_ <= 8;
+        field_live_ = live;
         const bool allowed = live && !input_hold_ && !ui::any_document_visible() && (scripted || c.spell_ring);
         const ring::State before = ring_;
         ring_ = ring::pick(allowed ? rx : 0, allowed ? ry : 0, before, c.spell_ring_orientation);
@@ -1215,7 +1221,7 @@ private:
     // and Back their meaning. Called once per input tick; sets cfie::npc_input.
     void update_npc_pads(float dead, bool paused) {
         for (int& t : cfie::npc_idle_ticks) t = std::min(t + 1, 1000);
-        if (!cfie::npc_control) {
+        if (!cfie::npc_control && players != 1) {
             if (!extra_pads_.empty()) close_extra_pads();
             return;
         }
@@ -1241,7 +1247,8 @@ private:
         for (ExtraPad& e : extra_pads_) {
             const bool start = SDL_GetGamepadButton(e.pad, SDL_GAMEPAD_BUTTON_START);
             const bool back = SDL_GetGamepadButton(e.pad, SDL_GAMEPAD_BUTTON_BACK);
-            if (!paused && start && !e.start && e.slot == 0) {
+            if (!cfie::npc_control) e.slot = 0, e.player = 0;
+            if (cfie::npc_control && !paused && start && !e.start && e.slot == 0) {
                 for (int slot = 1; slot < 4 && e.slot == 0; slot++) {
                     bool taken = cfie::npc_idle_ticks[slot] >= kNpcPresentTicks;
                     for (const ExtraPad& o : extra_pads_) taken |= o.slot == slot;
@@ -1311,6 +1318,30 @@ private:
         }
     }
 
+    // Any connected controller can use the game's menus, dialogue and cutscenes: while the field is not being played,
+    // its buttons count as the first player's (single window only).
+    bool feeds_player() const { return cfie::pads_use_menus && players == 1 && !field_live_; }
+
+    uint32_t extra_pad_buttons(const input::Bindings& c, float dead) {
+        uint32_t b = 0;
+        if (!feeds_player()) return b;
+        for (const ExtraPad& e : extra_pads_) {
+            for (int i = 0; i < input::kFirstAppAction; i++)
+                if (input::pad_held(e.pad, c.pad[i], dead)) b |= kDsBits[i];
+            if (!c.stick_moves) continue;
+            const float lx = SDL_GetGamepadAxis(e.pad, SDL_GAMEPAD_AXIS_LEFTX) / 32767.0f;
+            const float ly = SDL_GetGamepadAxis(e.pad, SDL_GAMEPAD_AXIS_LEFTY) / 32767.0f;
+            if (const float length = std::hypot(lx, ly); length > dead) {
+                const float diagonal = 0.38268343f * length;
+                if (lx < -diagonal) b |= ntr::KeyLeft;
+                if (lx > diagonal) b |= ntr::KeyRight;
+                if (ly < -diagonal) b |= ntr::KeyUp;
+                if (ly > diagonal) b |= ntr::KeyDown;
+            }
+        }
+        return b;
+    }
+
     bool from_extra_pad(const SDL_Event& e) {
         SDL_JoystickID which;
         if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN || e.type == SDL_EVENT_GAMEPAD_BUTTON_UP) which = e.gbutton.which;
@@ -1318,6 +1349,13 @@ private:
         else return false;
         for (ExtraPad& p : extra_pads_) {
             if (p.id != which) continue;
+            if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN && !input_hold_ && !ui::any_document_visible() &&
+                (script.empty() || mix_real_input)) {
+                const auto button = input::PadInput::button(SDL_GamepadButton(e.gbutton.button));
+                if (feeds_player())
+                    for (int i = 0; i < input::kFirstAppAction; i++)
+                        if (settings.controls.pad[i] == button) presses_ |= kDsBits[i];
+            }
             if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN && p.slot != 0 && !input_hold_ &&
                 !ui::any_document_visible() && (script.empty() || mix_real_input)) {
                 const auto button = input::PadInput::button(SDL_GamepadButton(e.gbutton.button));
@@ -1625,6 +1663,7 @@ private:
     int spell_elements_[4] = {-1, 0, 0, 0};
     uint16_t npc_selection_buttons_[4]{};
     std::chrono::steady_clock::time_point spell_indicator_until_[4]{};
+    bool field_live_ = false;          // the game's field HUD updated lately: controllers play, not just navigate
     uint64_t ring_ticks_ = 0;          // the game's spell bar updates seen, and the frame of the last one
     uint64_t ring_tick_frame_ = 0;
     bool number_down_[6] = {};         // the number keys 1 to 6 (spell elements) were down last frame
@@ -2372,6 +2411,8 @@ int main(int argc, char** argv) {
                 cfie::camera_distance = host.settings.camera_distance;
                 cfie::dynamic_camera = host.settings.dynamic_camera;
                 cfie::npc_exits = host.settings.npc_exits;
+                cfie::pads_use_menus = host.settings.pads_use_menus;
+                cfie::npc_interact = host.settings.npc_interact;
                 cfie::npc_control = host.settings.npc_control && host.players == 1;
 
                 auto runtime = ntr::Runtime::create(std::move(g.rom), g.module.code(), host, std::move(g.options));
