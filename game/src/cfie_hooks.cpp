@@ -136,6 +136,7 @@ struct SlotStick {
 constexpr uint8_t kFullPush = 63;
 constexpr uint16_t kNpcActionButtons = 0x0C03;
 constexpr uint16_t kDsDirections = 0x00F0;
+constexpr uint16_t kDsA = 0x0001;
 constexpr uint16_t kDsR = 0x0100;
 constexpr uint16_t kDsX = 0x0400;
 constexpr uint32_t kCastState = 23;
@@ -441,7 +442,11 @@ extern "C" void cfie_npc_input(NtrCpu* c) {
         }
         c->r[0] = r0; c->r[1] = r1; c->r[2] = r2; c->r[3] = r3; c->r[14] = lr;
     }
-    const float length = (in.buttons & kDsR) || ntr_rd32(c, c->r[0] + 8) == kCastState
+    // A player's attack stands still (states 6146, 24 and 536 are its start, swing and recovery), so a movement vector
+    // during them would cancel it back into the run before it connects.
+    const uint32_t state = ntr_rd32(c, c->r[0] + 8);
+    const bool attacking = (in.buttons & kDsA) || state == 6146 || state == 24 || state == 536;
+    const float length = (in.buttons & kDsR) || state == kCastState || attacking
         ? 0.0f : std::min(std::hypot(in.x, in.y), 1.0f);
     uint8_t angle = 0;
     int64_t speed = 0;
