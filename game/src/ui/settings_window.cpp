@@ -76,7 +76,7 @@ bool is_experimental(const Rml::String& key) {
     static const char* const kRows[] = {"Aspect ratio", "HUD position", "HUD size", "3D frame rate", "Frame pacing",
                                         "Frame rate limit", "Stable textures", "Texture smoothing", "Analog movement",
                                         "Console name", "Wi-Fi Connection server", "DNS server address", "Input buffer",
-                                        "Camera distance"};
+                                        "Camera distance", "Dynamic camera"};
     return std::find(std::begin(kRows), std::end(kRows), key) != std::end(kRows);
 }
 
@@ -568,9 +568,6 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             });
         bool_row(leftPane, rightPane, "Left stick moves too", [](auto& s) -> auto& { return s.controls.stick_moves; },
             "The left stick also moves the character and steers the menus, like the D-pad.");
-        bool_row(leftPane, rightPane, "Mouse wheel changes camera", [](auto& s) -> auto& { return s.controls.camera_wheel; },
-            "Scroll up to move the field camera closer, or down to move it farther away. The wheel scrolls the "
-            "interface normally while a menu is open.");
         number_row(
             leftPane, rightPane, "Stick deadzone", [](auto& s) -> auto& { return s.controls.deadzone; },
             "How far the stick has to be pushed before it counts. Raise it if the character drifts when you let go.",
@@ -621,22 +618,6 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             "Plays the game's own sound effects in these menus. They play while the game is running.");
 
         leftPane.add_section("Game");
-        number_row(leftPane, rightPane, "Camera distance", SETTING(camera_distance),
-            "The field camera's distance as a percentage of the game's own distance. Mouse wheel or the stick clicks "
-            "change it by 25%. At large distances the edges of a level or missing objects may become visible. "
-            "Other camera setups keep their original distance; multiplayer and cutscenes are less tested.", cfie::kCameraDistanceMin,
-            cfie::kCameraDistanceMax, cfie::kCameraDistanceStep);
-#ifdef _WIN32
-        number_row(leftPane, rightPane, "Local players", SETTING(local_players),
-            "How many windows of the game to open on this PC, up to four. Each is a console of its own with its own "
-            "save (cfie.sav, cfie.p2.sav, ...) and its own controller (the first controller is player 1's, the second "
-            "player 2's, and so on), and they play together over local wireless: host or join a game from the "
-            "game's own menus as on a DS. Takes effect the next time the game starts.", 1, 4, 1, "");
-#endif
-        bool_row(leftPane, rightPane, "Controllers take party members", SETTING(npc_control),
-            "With one window, pressing Start on a second, third or fourth controller takes control of the next "
-            "free party member (the computer-controlled characters that follow you), who then moves with that "
-            "controller's left stick. Back gives the character back. Not used in online or wireless games.");
         enum_row(
             leftPane, rightPane, "Language", SETTING(language), {0, 1, 2, 3}, {"English", "French", "German", "Spanish"},
             "The language the game plays in. The USA release has English, French and Spanish; the European release "
@@ -664,6 +645,39 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
                 "have been set up (Game files, before the game starts). The sound is the DS's. Takes effect the next time "
                 "the game starts.");
         }
+    });
+
+    add_tab("Local co-op", [this](Rml::Element* content) {
+        auto& leftPane = add_child<Pane>(content, Pane::Type::Controlled);
+        auto& rightPane = add_child<Pane>(content, Pane::Type::Uncontrolled);
+
+        leftPane.add_section("Players");
+#ifdef _WIN32
+        number_row(leftPane, rightPane, "Local players", SETTING(local_players),
+            "How many windows of the game to open on this PC, up to four. Each is a console of its own with its own "
+            "save (cfie.sav, cfie.p2.sav, ...) and its own controller (the first controller is player 1's, the second "
+            "player 2's, and so on), and they play together over local wireless: host or join a game from the "
+            "game's own menus as on a DS. Takes effect the next time the game starts.", 1, 4, 1, "");
+#endif
+        bool_row(leftPane, rightPane, "Controllers take party members", SETTING(npc_control),
+            "With one window, pressing Start on a second, third or fourth controller takes control of the next "
+            "free party member (the computer-controlled characters that follow you), who then moves with that "
+            "controller's left stick. Back gives the character back. Not used in online or wireless games.");
+
+        leftPane.add_section("Camera");
+        bool_row(leftPane, rightPane, "Dynamic camera", SETTING(dynamic_camera),
+            "With more than one player (controllers that took party members, or a wireless or online game), the "
+            "camera zooms between 2x and 4x the game's distance and moves its target to keep everyone in view. It "
+            "centers on the players, and follows player 1 more the closer they get to the edge of the view. With one "
+            "player the camera distance below is used.");
+        number_row(leftPane, rightPane, "Camera distance", SETTING(camera_distance),
+            "The field camera's distance as a percentage of the game's own distance. Mouse wheel or the stick clicks "
+            "change it by 25%. At large distances the edges of a level or missing objects may become visible. "
+            "Other camera setups keep their original distance; multiplayer and cutscenes are less tested.", cfie::kCameraDistanceMin,
+            cfie::kCameraDistanceMax, cfie::kCameraDistanceStep);
+        bool_row(leftPane, rightPane, "Mouse wheel changes camera", [](auto& s) -> auto& { return s.controls.camera_wheel; },
+            "Scroll up to move the field camera closer, or down to move it farther away. The wheel scrolls the "
+            "interface normally while a menu is open.");
     });
 
     add_tab("Network", [this](Rml::Element* content) {

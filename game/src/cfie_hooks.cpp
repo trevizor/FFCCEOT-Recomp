@@ -18,6 +18,42 @@ bool fast_saving = true;
 AnalogMovement analog_movement = AnalogMovement::SinglePlayer;
 uint16_t aspect = 0x1555;
 int camera_distance = kCameraDistanceDefault;
+bool dynamic_camera = true;
+
+CameraFraming frame_players(const float eye[3], const float target[3], const float (*players)[3], int count,
+                            float tan_half_fov, float aspect) {
+    CameraFraming out;
+    const float fx = target[0] - eye[0], fy = target[1] - eye[1], fz = target[2] - eye[2];
+    const float dist = std::sqrt(fx * fx + fy * fy + fz * fz), horizontal = std::hypot(fx, fz);
+    if (count < 1 || dist < 1 || horizontal < 1e-3f || tan_half_fov <= 0 || aspect <= 0) return out;
+    // Screen-aligned axes: a to the camera's right, b up the screen. Ground away from the camera rises by the sine of
+    // the view's pitch and height by its cosine; heights count from the first player's feet (the target follows them).
+    const float gx = fx / horizontal, gz = fz / horizontal, rx = -gz, rz = gx;
+    const float pitch = std::clamp(std::fabs(fy) / dist, 0.2f, 1.0f), lift = std::sqrt(1 - pitch * pitch);
+    float a[4], b[4], min_a = 1e30f, max_a = -1e30f, min_b = 1e30f, max_b = -1e30f;
+    count = std::min(count, 4);
+    for (int i = 0; i < count; i++) {
+        const float qx = players[i][0] - target[0], qz = players[i][2] - target[2];
+        a[i] = qx * rx + qz * rz;
+        b[i] = (qx * gx + qz * gz) * pitch + (players[i][1] - players[0][1]) * lift;
+        min_a = std::min(min_a, a[i]), max_a = std::max(max_a, a[i]);
+        min_b = std::min(min_b, b[i]), max_b = std::max(max_b, b[i]);
+    }
+    constexpr float kFill = 0.75f;  // the players stay inside this share of the view's half size
+    const float half_w = dist * tan_half_fov * aspect, half_h = dist * tan_half_fov;
+    const float need = std::max((max_a - min_a) / 2 / (kFill * half_w), (max_b - min_b) / 2 / (kFill * half_h));
+    const float scale = std::clamp(need, kDynamicCameraMin / 100.0f, kDynamicCameraMax / 100.0f);
+    out.distance = int(std::lround(scale * 100));
+    float center_a = (min_a + max_a) / 2, center_b = (min_b + max_b) / 2;
+    // Player 1 is the one that must not be lost: the closer they are to the view's edge, the more it follows them.
+    const float edge = std::max(std::fabs(a[0] - center_a) / (half_w * scale), std::fabs(b[0] - center_b) / (half_h * scale));
+    const float t = std::clamp((edge - 0.5f) / 0.3f, 0.0f, 1.0f), weight = t * t * (3 - 2 * t);
+    center_a += (a[0] - center_a) * weight;
+    center_b += (b[0] - center_b) * weight;
+    out.shift_x = rx * center_a + gx * center_b / pitch;
+    out.shift_z = rz * center_a + gz * center_b / pitch;
+    return out;
+}
 Stick stick;
 NpcInput npc_input[4];
 bool npc_buttons_read[4] = {};
@@ -472,22 +508,97 @@ extern "C" void cfie_npc_input(NtrCpu* c) {
 // A scene of orthographic geometry only (the title) stays 4:3 (ffcc_wide_block counts frames).
 extern "C" int ffcc_wide_scene;
 extern "C" int ffcc_wide_block;
+namespace {
+// The field's projection, as last set up (cfie_perspective_aspect): tan of the half field of view, and the aspect ratio.
+float view_tan_half_fov = 0.5f, view_aspect = 4.0f / 3.0f;
+}  // namespace
 extern "C" void cfie_perspective_aspect(NtrCpu* c) {
     if (c->r[2] == 0x1555 && cfie::aspect != 0x1555 && ffcc_wide_block == 0) {
         c->r[2] = cfie::aspect;
         ffcc_wide_scene = 8;
     }
+    if (c->r[1] != 0 && int32_t(c->r[1]) > 0 && c->r[2] != 0) {
+        view_tan_half_fov = float(int32_t(c->r[0])) / float(int32_t(c->r[1]));
+        view_aspect = float(c->r[2]) / 4096.0f;
+    }
 }
+
+namespace {
+// With several players the camera's distance and target follow a framing of them (cfie::frame_players); the camera
+// glides there instead of jumping.
+struct CameraGlide {
+    bool active = false;
+    float distance = 0, shift_x = 0, shift_z = 0;
+};
+CameraGlide glide;
+
+// Positions (x, z) of the players the camera must keep in view, player 1 first: the main player and the party
+// members controllers have taken, or everyone in the game when it is networked.
+int camera_players(NtrCpu* c, float (*out)[3]) {
+    const uint32_t lr = c->r[14], r0 = c->r[0], r1 = c->r[1], r2 = c->r[2], r3 = c->r[3];
+    const bool network = ntr_rd8(c, A->network + 2) != 0;
+    int count = 0;
+    for (uint32_t slot = 0; slot < 4; slot++) {
+        const uint32_t character = ntr_rd32(c, A->players + 572 * slot + 328);
+        if (!character) continue;
+        bool wanted = slot == 0 || cfie::npc_input[slot].active;
+        if (network && slot != 0) {
+            c->r[0] = A->players;
+            c->r[1] = slot;
+            ntr_call(c, A->player_present | 1);
+            wanted = c->r[0] != 0;
+        }
+        if (!wanted) continue;
+        out[count][0] = float(int32_t(ntr_rd32(c, character + 0x50)));
+        out[count][1] = float(int32_t(ntr_rd32(c, character + 0x54)));
+        out[count][2] = float(int32_t(ntr_rd32(c, character + 0x58)));
+        count++;
+    }
+    c->r[0] = r0, c->r[1] = r1, c->r[2] = r2, c->r[3] = r3, c->r[14] = lr;
+    return count;
+}
+}  // namespace
 
 // Only the field camera's look-at call: other callers include the title and character creation.
 extern "C" void cfie_camera_distance(NtrCpu* c) {
-    if (c->r[14] != 0x0208468F || cfie::camera_distance == 100) return;
+    if (c->r[14] != 0x0208468F) return;
     const uint32_t eye = c->r[0], target = c->r[2];
-    for (uint32_t axis = 0; axis < 12; axis += 4) {
-        const int32_t e = int32_t(ntr_rd32(c, eye + axis));
-        const int32_t t = int32_t(ntr_rd32(c, target + axis));
-        ntr_wr32(c, eye + axis, uint32_t(cfie::camera_coordinate(e, t, cfie::camera_distance)));
+    int32_t e[3], t[3];
+    for (int axis = 0; axis < 3; axis++) {
+        e[axis] = int32_t(ntr_rd32(c, eye + 4 * axis));
+        t[axis] = int32_t(ntr_rd32(c, target + 4 * axis));
     }
+    float want_distance = float(cfie::camera_distance), want_x = 0, want_z = 0;
+    float positions[4][3];
+    const int players = cfie::dynamic_camera ? camera_players(c, positions) : 0;
+    if (players >= 2) {
+        const float ef[3] = {float(e[0]), float(e[1]), float(e[2])}, tf[3] = {float(t[0]), float(t[1]), float(t[2])};
+        const cfie::CameraFraming f =
+            cfie::frame_players(ef, tf, positions, players, view_tan_half_fov, view_aspect);
+        want_distance = float(f.distance), want_x = f.shift_x, want_z = f.shift_z;
+        if (!glide.active) glide = {true, float(cfie::camera_distance), 0, 0};
+    } else if (!glide.active) {
+        if (cfie::camera_distance == 100) return;
+        glide.distance = want_distance;
+    }
+    if (glide.active) {
+        constexpr float kGlide = 0.08f;
+        glide.distance += (want_distance - glide.distance) * kGlide;
+        glide.shift_x += (want_x - glide.shift_x) * kGlide;
+        glide.shift_z += (want_z - glide.shift_z) * kGlide;
+        // Back to a single player and settled: hand the camera back to the plain setting.
+        if (players < 2 && std::fabs(glide.distance - want_distance) < 1 && std::fabs(glide.shift_x) < 64 &&
+            std::fabs(glide.shift_z) < 64)
+            glide.active = false;
+    }
+    const int distance = glide.active ? int(std::lround(glide.distance)) : cfie::camera_distance;
+    const int32_t dx = glide.active ? int32_t(std::lround(glide.shift_x)) : 0;
+    const int32_t dz = glide.active ? int32_t(std::lround(glide.shift_z)) : 0;
+    e[0] += dx, t[0] += dx, e[2] += dz, t[2] += dz;
+    for (int axis = 0; axis < 3; axis++)
+        ntr_wr32(c, eye + 4 * axis, uint32_t(cfie::camera_coordinate(e[axis], t[axis], distance)));
+    ntr_wr32(c, target, uint32_t(t[0]));
+    ntr_wr32(c, target + 8, uint32_t(t[2]));
 }
 
 extern "C" int cfie_player_animation_step(NtrCpu* c) {

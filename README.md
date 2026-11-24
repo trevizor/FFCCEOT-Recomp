@@ -88,11 +88,16 @@ points, slower when it is pushed less; in multiplayer it needs every player on t
 directions). The right stick opens a radial of the six spell gems: point at one, then hold X to cast (the number keys
 1 to 6 do the same). The company logos before the title screen are skipped.
 
-Camera distance defaults to 200% and is adjustable from 50% to 400% in Settings → Game. Scroll the mouse wheel up or press R3 (right stick
+Camera distance defaults to 200% and is adjustable from 50% to 400% in Settings → Local co-op. Scroll the mouse wheel up or press R3 (right stick
 click) to move closer; scroll down or press L3 (left stick click) to move farther away, in 25% steps. The camera buttons
-can be rebound under Controls, and the wheel can be turned off in Settings → Input.
+can be rebound under Controls, and the wheel can be turned off in Settings → Local co-op.
 
-Local players (Windows): Settings → Game → Local players (1–4, or `--players <n>`) opens one window per player, tiled
+Dynamic camera (Settings → Local co-op, on by default): with more than one player (controllers that took party members,
+or a wireless or online game) the camera zooms between 2x and 4x the game's distance and moves its target to keep every
+player in view. It centers on the players and follows player 1 more the closer they get to the edge of the view. With one
+player the camera distance setting is used.
+
+Local players (Windows): Settings → Local co-op → Local players (1–4, or `--players <n>`) opens one window per player, tiled
 on the screen. Each window is its own console with its own save (`cfie.sav`, `cfie.p2.sav`, …) and its own controller
 (player N uses the N-th connected gamepad); players join each other through the game's own multiplayer menus. Only
 the first window writes `settings.ini`, and closing it does not close the others.
@@ -104,7 +109,7 @@ button) to pick up items and lift or put down objects. **Back** gives it back. A
 finishes before the controller can start another action. Each player selects their own spell with the right stick or
 DS R + left/right, then holds DS X to cast. While a party member is controlled, each player's radial appears at half
 size in their screen quadrant, and a spell change briefly shows its icon there. The character must be able to cast the
-selected spell. Settings → Game → "Controllers take party members" turns it off. Not recorded in replays.
+selected spell. Settings → Local co-op → "Controllers take party members" turns it off. Not recorded in replays.
 
 Hotkeys: **F1** (or R + Start on a gamepad) opens the settings menu over the game, which keeps running without input so
 online play stays in sync; **F2** swaps the screens, **F3** shows or hides the picture-in-picture, **F4** moves the side
@@ -117,7 +122,7 @@ to change, shoulders for tabs). The Settings window ends with an **About** tab: 
 
 This is an early build: please report problems from the in-game menu or on the issue tracker.
 
-- **Experimental features** carry a warning icon in the settings: camera distance, widescreen and HUD placement, 3D at 60 fps and at your
+- **Experimental features** carry a warning icon in the settings: camera distance, dynamic camera, widescreen and HUD placement, 3D at 60 fps and at your
   display's refresh rate, frame pacing, stable and smoothed textures, analog movement in multiplayer, and everything
   online. They work, but have had less testing.
 - Not done on Linux yet: the crash dialog (logs and problem reports work) and local wireless between instances.

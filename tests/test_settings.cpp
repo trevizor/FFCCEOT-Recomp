@@ -2,6 +2,7 @@
 // swap rules of the controls window.
 #include <cstdio>
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -131,6 +132,8 @@ void test_set_setting() {
     CHECK(set_setting(s, "game.local_players", "0") && s.local_players == 1);
     CHECK(s.npc_control);
     CHECK(set_setting(s, "game.npc_control", "false") && !s.npc_control);
+    CHECK(s.dynamic_camera);
+    CHECK(set_setting(s, "game.dynamic_camera", "false") && !s.dynamic_camera);
     CHECK(!set_setting(s, "no.such_key", "1"));
 }
 
@@ -161,6 +164,7 @@ void test_camera_hook() {
     ntr_wr32(&cpu, 0x208, 80);
 
     cfie::camera_distance = 100;
+    cfie::dynamic_camera = false;
     cfie_camera_distance(&cpu);
     CHECK(int32_t(ntr_rd32(&cpu, 0x100)) == -300);
     cfie::camera_distance = 200;
@@ -178,6 +182,28 @@ void test_camera_hook() {
     CHECK(ntr_rd32(&cpu, 0x104) == 500 && ntr_rd32(&cpu, 0x108) == 80);
     CHECK(ntr_rd32(&cpu, 0x200) == 100 && ntr_rd32(&cpu, 0x204) == 100);
     cfie::camera_distance = cfie::kCameraDistanceDefault;
+    cfie::dynamic_camera = true;
+}
+
+void test_frame_players() {
+    // The camera looks from the south-east toward the target at about 35 degrees; heights are level.
+    const float eye[3] = {500000, 300000, 500000}, target[3] = {0, 0, 0};
+    const float tan_half = 0.175f, aspect = 4.0f / 3.0f;
+    const float together[2][3] = {{0, 0, 0}, {20000, 0, 10000}};
+    cfie::CameraFraming f = cfie::frame_players(eye, target, together, 2, tan_half, aspect);
+    CHECK(f.distance == cfie::kDynamicCameraMin);
+    CHECK(std::fabs(f.shift_x - 10000) < 1 && std::fabs(f.shift_z - 5000) < 1);  // centered between them
+    const float apart[2][3] = {{0, 0, 0}, {-2000000, 0, 0}};
+    f = cfie::frame_players(eye, target, apart, 2, tan_half, aspect);
+    CHECK(f.distance == cfie::kDynamicCameraMax);
+    // Out of reach of the zoom, the view follows player 1 (at 0) instead of the midpoint (-1000000).
+    CHECK(f.shift_x > -100000);
+    const float mid[2][3] = {{0, 0, 0}, {-1200000, 0, 0}};
+    f = cfie::frame_players(eye, target, mid, 2, tan_half, aspect);
+    CHECK(f.distance > cfie::kDynamicCameraMin && f.distance < cfie::kDynamicCameraMax);
+    // A player on higher ground is higher on the screen, so the view has to be wider to keep both.
+    const float high[2][3] = {{0, 0, 0}, {0, 600000, 0}};
+    CHECK(cfie::frame_players(eye, target, high, 2, tan_half, aspect).distance > cfie::kDynamicCameraMin);
 }
 
 void test_camera_binding_migration() {
@@ -254,6 +280,7 @@ int main() {
     test_set_setting();
     test_camera_coordinates();
     test_camera_hook();
+    test_frame_players();
     test_camera_binding_migration();
     test_alpha_defaults();
     test_assign_key_swaps();

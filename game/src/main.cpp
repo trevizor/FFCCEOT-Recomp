@@ -83,7 +83,8 @@ std::map<std::string, std::string> emulation_settings(const Settings& s) {
             {"skip_logos", s.skip_logos ? "1" : "0"},
             {"analog_movement", analog[std::clamp(int(s.controls.analog_movement), 0, 2)]},
             {"aspect", std::to_string(int(s.aspect))},
-            {"camera_distance", std::to_string(s.camera_distance)}};
+            {"camera_distance", std::to_string(s.camera_distance)},
+            {"dynamic_camera", s.dynamic_camera ? "1" : "0"}};
 }
 
 class SdlHost final : public ntr::Host {
@@ -767,6 +768,7 @@ private:
         cfie::online_buffer = settings.online_buffer;
         cfie::fast_saving = settings.fast_saving;
         cfie::camera_distance = settings.camera_distance;
+        cfie::dynamic_camera = settings.dynamic_camera;
         cfie::npc_control = settings.npc_control && players == 1;
         title_dirty_ = true;
     }
@@ -2366,6 +2368,7 @@ int main(int argc, char** argv) {
                 cfie::online_buffer = host.settings.online_buffer;
                 cfie::fast_saving = host.settings.fast_saving;
                 cfie::camera_distance = host.settings.camera_distance;
+                cfie::dynamic_camera = host.settings.dynamic_camera;
                 cfie::npc_control = host.settings.npc_control && host.players == 1;
 
                 auto runtime = ntr::Runtime::create(std::move(g.rom), g.module.code(), host, std::move(g.options));

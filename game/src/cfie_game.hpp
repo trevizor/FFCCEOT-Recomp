@@ -31,6 +31,18 @@ inline constexpr int kCameraDistanceMax = 400;
 inline constexpr int kCameraDistanceDefault = 200;
 inline constexpr int kCameraDistanceStep = 25;
 extern int camera_distance;  // percent of the game's distance; set and read on the game thread
+extern bool dynamic_camera;  // with several players the camera frames them all, 2x to 4x the game's distance
+inline constexpr int kDynamicCameraMin = 200;
+inline constexpr int kDynamicCameraMax = 400;
+
+// Where the camera must be so every player is in view. Positions are (x, y, z) in the game's world, y up; the camera
+// looks from `eye` to `target`. `tan_half_fov` and `aspect` give the view's width at a distance.
+struct CameraFraming {
+    int distance = kDynamicCameraMax;  // percent of the game's distance
+    float shift_x = 0, shift_z = 0;    // how far the target moves, in world units
+};
+CameraFraming frame_players(const float eye[3], const float target[3], const float (*players)[3], int count,
+                            float tan_half_fov, float aspect);
 
 inline int32_t camera_coordinate(int32_t eye, int32_t target, int distance) {
     const int64_t value = int64_t(target) + (int64_t(eye) - target) * distance / 100;
