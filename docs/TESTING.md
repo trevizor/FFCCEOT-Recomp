@@ -134,6 +134,7 @@ ffcc.exe <rom.nds> --data-dir run --input-script rec.txt --read-only-save --unpa
          --perf-log perf.csv --frame-hash hashes.txt
 ```
 
+Test runs default to 0% volume; an explicit `audio.volume` in `settings.ini` overrides it.
 `--no-settings` ignores `settings.ini`; `--save-file <copy>` uses another save; `--set-at-frame <n> key=value` changes a
 setting mid-run (not CPU speed or fast loading). A script is one step per line, see `game/src/input_script.hpp`;
 `python tools/scenario.py new-from-script NAME --script s.txt --save cfie.sav` makes a scenario from one.

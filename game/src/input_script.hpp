@@ -11,7 +11,7 @@
 //   rstick x,y [frames]    push the right stick (percent, -100 to 100, y down): the spell radial opens and points
 //   spell N                the game's spell element (0 to 5: the gems top to bottom) is asked for this frame
 //   npc N,x,y [frames]     testing: party member N (1 to 3) takes a controller's stick (percent, y down; default 1 frame)
-//   npc_button N,A+B [frames]  testing: party member N holds DS A and/or B
+//   npc_button N,A+B+Y [frames]  testing: party member N holds DS A, B and/or Y
 //   shot file.png          save the window
 //   quit                   exit
 // Blank lines and lines starting with # are ignored, except these comments, which carry what a recording needs:

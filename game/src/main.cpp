@@ -1206,6 +1206,7 @@ private:
             uint16_t buttons = 0;
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::A)], dead)) buttons |= ntr::KeyA;
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::B)], dead)) buttons |= ntr::KeyB;
+            if (input::pad_held(e.pad, bindings.pad[int(input::Action::Y)], dead)) buttons |= ntr::KeyY;
             const bool read = cfie::npc_buttons_read[e.slot] || ++e.frames_unread >= 30;
             if (read) e.frames_unread = 0;
             cfie::npc_buttons_read[e.slot] = false;
@@ -1227,6 +1228,7 @@ private:
                 const auto button = input::PadInput::button(SDL_GamepadButton(e.gbutton.button));
                 if (settings.controls.pad[int(input::Action::A)] == button) p.presses |= ntr::KeyA;
                 if (settings.controls.pad[int(input::Action::B)] == button) p.presses |= ntr::KeyB;
+                if (settings.controls.pad[int(input::Action::Y)] == button) p.presses |= ntr::KeyY;
             }
             return true;
         }
@@ -1828,6 +1830,7 @@ int main(int argc, char** argv) {
     }
     if (!per_release_save) save_path = player_save(save_path, player);
     Settings settings;
+    if (testing) settings.volume = 0;
     if (!settings_path.empty()) load_settings(settings_path, settings);
 
     ntr::RuntimeOptions options;

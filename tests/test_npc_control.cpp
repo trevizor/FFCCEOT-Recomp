@@ -72,11 +72,11 @@ void test_npc_input() {
     CHECK(ntr_rd32(&cpu, kInput) == 0x02060002 && yaw_character == 0);
 
     ntr_wr8(&cpu, kNetwork + 2, 0);
-    cfie::npc_input[1].buttons = 3;
+    cfie::npc_input[1].buttons = 11;
     cpu.r[0] = 0x021218AC + 32 + 12;
     cpu.r[2] = 0;
     cfie_npc_buttons(&cpu);
-    CHECK(cpu.r[2] == 3);
+    CHECK(cpu.r[2] == 11);
     CHECK(cfie::npc_buttons_read[1]);
     cpu.r[0] = 0x021218AC + 12;
     cpu.r[2] = 7;
