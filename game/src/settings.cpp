@@ -145,6 +145,8 @@ const Field kFields[] = {
           [](Settings& s, const std::string& v) {
               return parse_int(v, cfie::kCameraDistanceMin, cfie::kCameraDistanceMax, s.camera_distance);
           }},
+    Field{"game.local_players", [](const Settings& s) { return std::to_string(s.local_players); },
+          [](Settings& s, const std::string& v) { return parse_int(v, 1, 4, s.local_players); }},
     Field{"game.cpu_speed", [](const Settings& s) { return std::to_string(s.cpu_speed); },
           [](Settings& s, const std::string& v) {
               int n;

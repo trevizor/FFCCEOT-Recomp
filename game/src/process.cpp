@@ -117,7 +117,25 @@ Result run(const std::filesystem::path& exe, const std::vector<std::string>& arg
     return result;
 }
 
+bool spawn_self(const std::vector<std::string>& args) {
+    wchar_t exe[MAX_PATH * 4];
+    const DWORD n = GetModuleFileNameW(nullptr, exe, DWORD(std::size(exe)));
+    if (n == 0 || n >= std::size(exe)) return false;
+    std::wstring line;
+    append_arg(line, exe);
+    for (const std::string& a : args) append_arg(line, widen(a));
+    STARTUPINFOW si{};
+    si.cb = sizeof si;
+    PROCESS_INFORMATION pi{};
+    if (!CreateProcessW(exe, line.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi)) return false;
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    return true;
+}
+
 #else  // POSIX
+
+bool spawn_self(const std::vector<std::string>&) { return false; }
 
 Result run(const std::filesystem::path& exe, const std::vector<std::string>& args, const std::atomic<bool>* cancel) {
     Result result;

@@ -626,6 +626,13 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             "change it by 25%. At large distances the edges of a level or missing objects may become visible. "
             "Other camera setups keep their original distance; multiplayer and cutscenes are less tested.", cfie::kCameraDistanceMin,
             cfie::kCameraDistanceMax, cfie::kCameraDistanceStep);
+#ifdef _WIN32
+        number_row(leftPane, rightPane, "Local players", SETTING(local_players),
+            "How many windows of the game to open on this PC, up to four. Each is a console of its own with its own "
+            "save (cfie.sav, cfie.p2.sav, ...) and its own controller (the first controller is player 1's, the second "
+            "player 2's, and so on), and they play together over local wireless: host or join a game from the "
+            "game's own menus as on a DS. Takes effect the next time the game starts.", 1, 4, 1, "");
+#endif
         enum_row(
             leftPane, rightPane, "Language", SETTING(language), {0, 1, 2, 3}, {"English", "French", "German", "Spanish"},
             "The language the game plays in. The USA release has English, French and Spanish; the European release "

@@ -92,6 +92,11 @@ Camera distance is adjustable from 50% to 400% in Settings → Game. Scroll the 
 click) to move closer; scroll down or press L3 (left stick click) to move farther away, in 25% steps. The camera buttons
 can be rebound under Controls, and the wheel can be turned off in Settings → Input.
 
+Local players (Windows): Settings → Game → Local players (1–4, or `--players <n>`) opens one window per player, tiled
+on the screen. Each window is its own console with its own save (`cfie.sav`, `cfie.p2.sav`, …) and its own controller
+(player N uses the N-th connected gamepad); players join each other through the game's own multiplayer menus. Only
+the first window writes `settings.ini`, and closing it does not close the others.
+
 Hotkeys: **F1** (or R + Start on a gamepad) opens the settings menu over the game, which keeps running without input so
 online play stays in sync; **F2** swaps the screens, **F3** shows or hides the picture-in-picture, **F4** moves the side
 screen of the main + side layout, **F5** switches the renderer, **F6/F7** lower or raise the resolution, **F8** cycles

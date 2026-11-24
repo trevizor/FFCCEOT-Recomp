@@ -64,6 +64,7 @@ struct Settings {
     bool fast_saving = true;   // save reads and writes at once instead of at the DS's pace
     int cpu_speed = 4;         // ARM9 clock: 1, 2 or 4 times the DS's
     int camera_distance = cfie::kCameraDistanceDefault;  // percent of the game's field-camera distance
+    int local_players = 1;     // 1-4 windows of the game on this PC, each its own console and save (Windows)
     // Online
     std::string console_name;  // the console's name other players see (a DS nickname, 10 characters); empty: this PC's
     std::string online_server = "kaeru";  // a Wi-Fi Connection revival server (see online_dns), or a DNS address

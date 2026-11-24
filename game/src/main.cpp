@@ -19,6 +19,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <map>
 #include <optional>
 #include <sstream>
@@ -38,6 +39,7 @@
 #include "ntr/rom.hpp"
 #include "ntr/runtime.hpp"
 #include "perf_log.hpp"
+#include "process.hpp"
 #include "settings.hpp"
 #include "setup.hpp"
 #include "ui/app.hpp"
@@ -94,6 +96,8 @@ public:
         // The window's close button asks first (ui::request_quit_confirm); SDL's own QUIT after the last window closes
         // must not bypass that. A QUIT is then only the system's (logoff, Ctrl+C).
         SDL_SetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE, "0");
+        // Every player's window reads its own controller, focused or not.
+        if (players > 1) SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
         if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
             std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
             return false;
@@ -104,14 +108,48 @@ public:
         const video::Layout l = settings.layout.layout;
         const bool wide = l == video::Layout::Single || l == video::Layout::MainSide || l == video::Layout::Windows;
         const bool stacked = l == video::Layout::Stacked;
-        window_ = SDL_CreateWindow(kTitle, wide ? 1280 : stacked ? kScreenW * 3 : kScreenW * 2 * 3,
+        window_ = SDL_CreateWindow(player_title().c_str(), wide ? 1280 : stacked ? kScreenW * 3 : kScreenW * 2 * 3,
                                    wide ? 720 : stacked ? kScreenH * 2 * 3 : kScreenH * 3,
                                    SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
         if (!window_) {
             std::fprintf(stderr, "cannot open the game window: %s\n", SDL_GetError());
             return false;
         }
+        if (players > 1) place_in_grid();
         return true;
+    }
+
+    // The players' windows share the screen in a grid of two by two: player 1 at the top left, 2 at the top right, 3 at
+    // the bottom left, 4 at the bottom right.
+    void place_in_grid() {
+        SDL_Rect area;
+        if (!SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &area)) return;
+        const int w = area.w / 2, h = area.h / 2;
+        // (the frame is not known before the window is shown: about a Windows 11 title bar and border)
+        int top = 0, left = 0, bottom = 0, right = 0;
+        SDL_GetWindowBordersSize(window_, &top, &left, &bottom, &right);
+        if (top == 0) top = 32, left = right = bottom = 8;
+        const int cell = player - 1;
+        SDL_SetWindowSize(window_, w - left - right, h - top - bottom);
+        SDL_SetWindowPosition(window_, area.x + (cell % 2) * w + left, area.y + (cell / 2) * h + top);
+    }
+
+    std::string player_title() const {
+        return players > 1 ? std::string(kTitle) + "  |  Player " + std::to_string(player) : std::string(kTitle);
+    }
+
+    // Game thread. This player's controller: the first one connected is player 1's, the second player 2's, and so on.
+    void refresh_gamepad() {
+        int count = 0;
+        SDL_JoystickID* ids = SDL_GetGamepads(&count);
+        SDL_JoystickID wanted = 0;
+        if (ids) {
+            if (player - 1 < count) wanted = ids[player - 1];
+            SDL_free(ids);
+        }
+        if (gamepad_ && SDL_GetGamepadID(gamepad_) == wanted) return;
+        if (gamepad_) SDL_CloseGamepad(gamepad_);
+        gamepad_ = wanted ? SDL_OpenGamepad(wanted) : nullptr;
     }
 
     // Main thread: keeps the window alive and its events flowing until the game thread is done.
@@ -499,13 +537,8 @@ private:
             sync_video();
             break;
         case SDL_EVENT_GAMEPAD_ADDED:
-            if (!gamepad_) gamepad_ = SDL_OpenGamepad(e.gdevice.which);
-            break;
         case SDL_EVENT_GAMEPAD_REMOVED:
-            if (gamepad_ && SDL_GetGamepadID(gamepad_) == e.gdevice.which) {
-                SDL_CloseGamepad(gamepad_);
-                gamepad_ = nullptr;
-            }
+            refresh_gamepad();
             break;
         default: break;
         }
@@ -814,7 +847,7 @@ private:
         if (!runtime_) return;
         const video::LayoutSettings& layout = settings.layout;
         const ntr::VideoSettings v = runtime_->video();
-        std::string t = std::string(kTitle) + "  |  " + video::layout_name(layout.layout);
+        std::string t = player_title() + "  |  " + video::layout_name(layout.layout);
         if (layout.layout == video::Layout::Single)
             t += std::string(layout.swap ? " (bottom" : " (top") + (layout.second_screen ? " + other)" : ")");
         else if (layout.layout == video::Layout::MainSide)
@@ -1375,6 +1408,8 @@ private:
 public:
     Settings settings;
     std::filesystem::path settings_path;
+    int player = 1;   // this window's player, 1-4 (2 and up keep a save of their own and leave settings.ini alone)
+    int players = 1;  // how many windows are playing on this PC
     uint64_t exit_after_frames = 0;  // 0 = run until the window closes
     uint64_t crash_at_frame = 0, abort_at_frame = 0, report_at_frame = 0;  // testing the crash dialog and the report
     std::map<uint64_t, std::string> screenshots;  // debugging: save the window at these frames
@@ -1402,11 +1437,18 @@ public:
     bool perf = false;               // --perf: log hitches in frame pacing
 };
 
+// Players 2 and up keep saves of their own beside the first's: cfie.sav, cfie.p2.sav, cfie.p3.sav.
+std::filesystem::path player_save(std::filesystem::path path, int player) {
+    if (player > 1 && !path.empty())
+        path.replace_filename(path.stem().string() + ".p" + std::to_string(player) + path.extension().string());
+    return path;
+}
+
 // Reads the ROM and loads the recompiled game for it. False, with `error` set, if either cannot be used.
 // Each release keeps its own save (cfie.sav, cfip.sav), so playing one never replaces the other's: `save_path` is changed
-// to the release's, unless it was chosen with --save-file (`per_release_save` is false).
+// to the release's (and the player's), unless it was chosen with --save-file (`per_release_save` is false).
 bool load_game(const std::filesystem::path& rom_path, const std::filesystem::path& module_path,
-               std::filesystem::path& save_path, bool per_release_save, ntr::RuntimeOptions& options,
+               std::filesystem::path& save_path, bool per_release_save, int player, ntr::RuntimeOptions& options,
                std::vector<uint8_t>& rom, GameModule& module, std::string& error) {
     rom = read_file(rom_path);
     if (rom.empty()) {
@@ -1426,6 +1468,7 @@ bool load_game(const std::filesystem::path& rom_path, const std::filesystem::pat
         std::string stem = known->game_code;
         for (char& c : stem) c = char(std::tolower(static_cast<unsigned char>(c)));
         save_path.replace_filename(stem + ".sav");
+        save_path = player_save(save_path, player);
     }
     if (!save_path.empty() && std::filesystem::exists(save_path)) options.save_data = read_file(save_path);
     const auto wifi_path = std::filesystem::path(save_path).replace_extension(".wfc");
@@ -1613,6 +1656,8 @@ int main(int argc, char** argv) {
                      "  --ui-script <file>                   drive the start screen and the menu (see src/ui/ui_script.hpp)\n"
                      "  --ui-shots <folder>                  where the script's screenshots go (default: here)\n"
                      "  --save-file <file>                   use this save file instead of the usual one\n"
+                     "  --players <n>                        open n windows (1-4), each a console with its own save (overrides settings.ini)\n"
+                     "  --player <n>                         this window is player n (what --players starts; n >= 2 never writes settings.ini)\n"
                      "  --read-only-save                     never write the save file\n"
                      "  --no-settings                        ignore settings.ini (neither read nor written)\n"
                      "  --no-exe-icon                        do not write the game's icon into ffcc.exe (Windows)\n"
@@ -1629,6 +1674,7 @@ int main(int argc, char** argv) {
 
     // Testing options that decide which files are used come first: the other options override settings.ini.
     bool read_only_save = false, unpaced = false, per_release_save = true;
+    int player = 1;  // --player <n> (the windows a first one starts for the other players)
     for (int i = first_option; i < argc; i++) {
         const std::string a = argv[i];
         if (a == "--no-settings") settings_path.clear();
@@ -1636,9 +1682,11 @@ int main(int argc, char** argv) {
             save_path = argv[i + 1];
             per_release_save = false;
         }
+        else if (a == "--player" && i + 1 < argc) player = std::clamp(std::atoi(argv[i + 1]), 1, 4);
         else if (a == "--read-only-save") read_only_save = true;
         else if (a == "--unpaced") unpaced = true;
     }
+    if (!per_release_save) save_path = player_save(save_path, player);
     Settings settings;
     if (!settings_path.empty()) load_settings(settings_path, settings);
 
@@ -1805,6 +1853,10 @@ int main(int argc, char** argv) {
             toolchain_dir = argv[++i];
         } else if (a == "--save-file" && has_value)
             ++i;
+        else if ((a == "--player" || a == "--players") && has_value) {
+            const int n = std::clamp(std::atoi(argv[++i]), 1, 4);
+            if (a == "--players") settings.local_players = n;
+        }
         else if (a == "--no-settings" || a == "--read-only-save" || a == "--unpaced")
             ;
         else if (a == "--log-sounds")
@@ -1870,8 +1922,9 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "ignoring unknown or incomplete option %s\n", a.c_str());
     }
 
-    // Windows: the game's icon goes into this exe (app_icon.hpp), except in tests (--data-dir) and with --no-exe-icon.
-    const bool patch_exe_icon = !data_dir_given && !no_exe_icon && !explicit_rom;
+    // Windows: the game's icon goes into this exe (app_icon.hpp), except in tests (--data-dir) and with --no-exe-icon
+    // (and not from the windows of players 2 and up: the first has the program running as it is).
+    const bool patch_exe_icon = !data_dir_given && !no_exe_icon && !explicit_rom && player == 1;
 #ifdef _WIN32
     if (patch_exe_icon) app_icon::clean_up_exe();
 #endif
@@ -1907,7 +1960,10 @@ int main(int argc, char** argv) {
     }
     // A run without settings of its own (testing) does not offer the Welcome presets, unless asked to.
     if (first_run) settings.preset_chosen = false;
-    else if (testing) settings.suppress_preset = true;  // (not saved: the real settings.ini keeps its own answer)
+    else if (testing || player > 1) settings.suppress_preset = true;  // (not saved: the real settings.ini keeps its own answer)
+    // The windows that play together on this PC: the first starts the others (Windows only: that is where instances
+    // have local wireless between them), once its game is running. Test runs play alone.
+    const int players = testing ? 1 : std::clamp(settings.local_players, player, 4);
 
     struct Game {
         SdlHost& host;
@@ -1921,6 +1977,8 @@ int main(int argc, char** argv) {
         bool explicit_rom = false, module_given = false;
         std::filesystem::path rom_path, module_path;
         std::filesystem::path startup_rom;
+        int player = 1;
+        std::function<void()> start_other_players;  // called once the game is running
         int rc = 1;
     };
     SdlHost host;
@@ -1930,10 +1988,26 @@ int main(int argc, char** argv) {
     game.rom_path = rom_path;
     game.module_path = game_module_path;
     game.startup_rom = setup_rom;
+    game.player = player;
+    if (player == 1 && players > 1) {
+        // The others are copies of this program told which player they are, with the options this one has.
+        game.start_other_players = [argc, argv, players] {
+            std::vector<std::string> forwarded;
+            for (int i = 1; i < argc; i++) {
+                const std::string a = argv[i];
+                if (a != "--prelaunch" && a != "--first-run") forwarded.push_back(a);
+            }
+            for (int n = 2; n <= players; n++) {
+                std::vector<std::string> args = forwarded;
+                args.insert(args.end(), {"--player", std::to_string(n), "--players", std::to_string(players)});
+                if (!proc::spawn_self(args)) std::fprintf(stderr, "cannot start the window of player %d\n", n);
+            }
+        };
+    }
     if (explicit_rom) {
         // (Before the window: a ROM that cannot be used is reported at once.)
         std::string error;
-        if (!load_game(rom_path, game_module_path, save_path, per_release_save, options, game.rom, game.module, error)) {
+        if (!load_game(rom_path, game_module_path, save_path, per_release_save, player, options, game.rom, game.module, error)) {
             std::fprintf(stderr, "%s\n", error.c_str());
             return 1;
         }
@@ -1941,7 +2015,9 @@ int main(int argc, char** argv) {
     }
 
     host.settings = settings;
-    host.settings_path = settings_path;
+    host.settings_path = player > 1 ? std::filesystem::path{} : settings_path;  // (players 2 and up leave it to the first)
+    host.player = player;
+    host.players = players;
     host.exit_after_frames = exit_after_frames;
     host.crash_at_frame = crash_at_frame;
     host.abort_at_frame = abort_at_frame;
@@ -2000,11 +2076,12 @@ int main(int argc, char** argv) {
     host.ui_shot_dir = ui_shot_dir;
     // The start screen is shown on every launch (Dusklight's prelaunch), unless the settings skip it and a game is ready
     // to run, or a ROM was given on the command line.
-    host.show_prelaunch = force_prelaunch || (!explicit_rom && !(host.settings.skip_prelaunch && status.state == setup::State::Ready));
+    host.show_prelaunch = player == 1 && (force_prelaunch || (!explicit_rom && !(host.settings.skip_prelaunch && status.state == setup::State::Ready)));
     // A newer release on GitHub (Settings -> Interface turns this off); test runs never look.
-    if (!update_check_as.empty()) update::start(update_check_as);
+    if (player > 1) {}
+    else if (!update_check_as.empty()) update::start(update_check_as);
     else if (!testing && host.settings.check_updates) update::start(report::version());
-    game.fullscreen = host.settings.fullscreen;
+    game.fullscreen = host.settings.fullscreen && players == 1;
     host.settings.fullscreen = false;  // the window starts windowed; set_fullscreen below records the state
     if (!host.open_window()) return 1;
 
@@ -2023,7 +2100,7 @@ int main(int argc, char** argv) {
                 if (host.status.state == setup::State::Ready) {
                     std::string error;
                     if (load_game(host.status.rom, g.module_given ? g.module_path : host.status.module, g.save_path,
-                                  g.per_release_save, g.options, g.rom, g.module, error)) {
+                                  g.per_release_save, g.player, g.options, g.rom, g.module, error)) {
                         host.use_save_path(g.save_path);
                         g.loaded = true;
                         break;
@@ -2046,6 +2123,7 @@ int main(int argc, char** argv) {
                 cfie::camera_distance = host.settings.camera_distance;
 
                 auto runtime = ntr::Runtime::create(std::move(g.rom), g.module.code(), host, std::move(g.options));
+                if (g.start_other_players) g.start_other_players();
                 host.attach(runtime.get());
                 g.rc = runtime->run();
                 host.detach();

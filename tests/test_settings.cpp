@@ -125,6 +125,10 @@ void test_set_setting() {
     CHECK(set_setting(s, "game.camera_distance", "1000") && s.camera_distance == 400);
     CHECK(set_setting(s, "game.camera_distance", "0") && s.camera_distance == 50);
     CHECK(!set_setting(s, "game.camera_distance", "bad") && s.camera_distance == 50);
+    CHECK(s.local_players == 1);
+    CHECK(set_setting(s, "game.local_players", "3") && s.local_players == 3);
+    CHECK(set_setting(s, "game.local_players", "9") && s.local_players == 4);
+    CHECK(set_setting(s, "game.local_players", "0") && s.local_players == 1);
     CHECK(!set_setting(s, "no.such_key", "1"));
 }
 

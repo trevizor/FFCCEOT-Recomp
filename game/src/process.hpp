@@ -18,4 +18,8 @@ struct Result {
 // killed and the result's exit code is -1.
 Result run(const std::filesystem::path& exe, const std::vector<std::string>& args, const std::atomic<bool>* cancel = nullptr);
 
+// Starts another copy of this program with `args`, without waiting for it. False if it could not be started (and on
+// platforms without local wireless between instances, where nothing starts).
+bool spawn_self(const std::vector<std::string>& args);
+
 }  // namespace proc
