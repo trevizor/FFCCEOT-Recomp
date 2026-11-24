@@ -21,7 +21,7 @@ int camera_distance = kCameraDistanceDefault;
 bool dynamic_camera = true;
 bool npc_exits = true;
 bool pads_use_menus = true;
-bool npc_interact = true;
+bool npc_interact = false;  // WIP
 
 CameraFraming frame_players(const float eye[3], const float target[3], const float (*players)[3], int count,
                             float tan_half_fov, float aspect) {
@@ -429,10 +429,11 @@ extern "C" int cfie_npc_ai(NtrCpu* c) {
 // 0x0206C8DC (whether this is a multiplayer game), called by the field's exit check (0x0206B5CC) at 0x0206B60D with
 // r4 = the player slot it looks at. In a one-player game the check only looks at the main player; a party member a
 // controller has taken is let through as in a multiplayer game, so it can use map exits and entrances too.
+// WIP (npc_interact): it is also called from the loops over the players of the proximity triggers (talking to
+// characters, shops, crystals), which lets a party member start the interaction, but see cfie_interact_character.
 extern "C" int cfie_exit_check_player(NtrCpu* c) {
     constexpr uint32_t kExitCheckCall = 0x0206B60D;
-    // The loops over the players of the proximity triggers (talking to characters, shops, crystals): 0x02090EDC and
-    // two in 0x020A6A.. and 0x020A72.. .
+    // WIP: 0x02090EDC and two in 0x020A6A.. and 0x020A72.. .
     const uint32_t lr = c->r[14];
     const bool interact = lr == 0x02090F01 || lr == 0x020A6A79 || lr == 0x020A72D7;
     const uint32_t slot = c->r[4];
@@ -442,11 +443,16 @@ extern "C" int cfie_exit_check_player(NtrCpu* c) {
     return 1;
 }
 
-// 0x02057AE0 (whether a character is the main player), called by 0x02057AFC at 0x02057B19, which decides whether the
-// character may start a conversation, a shop or use a crystal: a party member a controller has taken counts as one.
+// WIP, does not work yet (npc_interact, off by default). 0x02057AE0 (whether a character is the main player), called by
+// 0x02057AFC at 0x02057B19, which decides whether the character may start a conversation, a shop or use a crystal; the
+// talk state (0x0206080C) also asks at 0x020608FD, and 0x02086480 at 0x0208648F. A party member a controller has taken
+// counts as one. With these a party member does enter the talk state and the game starts the conversation, but the
+// text window closes on its first frame: 0x020B4124 sees bit 0 of the flags at 0x02121618 set (0x020B422C), which is
+// not the case for player 1. Unknown yet what sets it; not investigated further (shops and crystals are untested).
 extern "C" int cfie_interact_character(NtrCpu* c) {
     const uint32_t lr = c->r[14];
-    if ((lr != 0x02057B19 && lr != 0x0208648F && lr != 0x020608FD) || !cfie::npc_interact || ntr_rd8(c, A->network + 2) != 0) return 0;
+    if ((lr != 0x02057B19 && lr != 0x0208648F && lr != 0x020608FD) || !cfie::npc_interact ||
+        ntr_rd8(c, A->network + 2) != 0) return 0;
     const uint32_t character = c->r[0];
     if (!character) return 0;
     const int32_t slot = int8_t(ntr_rd8(c, character + 172));

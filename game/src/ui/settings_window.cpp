@@ -667,8 +667,8 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
         bool_row(leftPane, rightPane, "Party members use map exits", SETTING(npc_exits),
             "A party member a controller has taken can walk into map exits and entrances (area borders, doors) and "
             "take everyone there, as player 1 can. When off, only player 1 can.");
-        bool_row(leftPane, rightPane, "Party members interact", SETTING(npc_interact),
-            "A party member a controller has taken can talk to characters, open shops and use crystals when standing "
+        bool_row(leftPane, rightPane, "Party members interact (WIP)", SETTING(npc_interact),
+            "Work in progress, does not work yet: the conversation starts but its text window closes at once. A party member a controller has taken can talk to characters, open shops and use crystals when standing "
             "next to them, as player 1 can. When off, only player 1 can.");
         bool_row(leftPane, rightPane, "All controllers use menus", SETTING(pads_use_menus),
             "With one window, every connected controller can advance dialogue, skip cutscenes and use the game's "

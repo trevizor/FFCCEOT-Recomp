@@ -63,4 +63,6 @@ main 020c6c58 before cfie_spell_pad
 main 020ace64 before cfie_on_movie_open
 main 020acef0 before cfie_on_movie_frame
 main 020aced0 before cfie_on_movie_close
+
+# WIP, does not work yet: party members talking to characters (npc_interact); see cfie_interact_character.
 main 02057ae0 instead cfie_interact_character
