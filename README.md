@@ -92,31 +92,50 @@ Camera distance defaults to 200% and is adjustable from 50% to 400% in Settings 
 click) to move closer; scroll down or press L3 (left stick click) to move farther away, in 25% steps. The camera buttons
 can be rebound under Controls, and the wheel can be turned off in Settings → Local co-op.
 
-Dynamic camera (Settings → Local co-op, on by default): with more than one player (controllers that took party members,
-or a wireless or online game) the camera zooms out from the camera distance setting (never closer) up to 4x the game's distance and moves its target to keep every
-player in view. It centers on the players and follows player 1 more the closer they get to the edge of the view. With one
-player the camera distance setting is used.
+## Local co-op
 
-Local players (Windows): Settings → Local co-op → Local players (1–4, or `--players <n>`) opens one window per player, tiled
-on the screen. Each window is its own console with its own save (`cfie.sav`, `cfie.p2.sav`, …) and its own controller
-(player N uses the N-th connected gamepad); players join each other through the game's own multiplayer menus. Only
-the first window writes `settings.ini`, and closing it does not close the others.
+Two ways to play together on one PC. Everything below is in **Settings → Local co-op** (F1 opens the settings over the game).
 
-Controllers for party members (offline, one window): with a party member from a save (an NPC), a gamepad other than
-yours takes it when you press **Start** on it (the next free member), moves it with the left stick, attacks with the
-configured DS A button (right face button by default), jumps with DS B (bottom face button), and uses DS Y (left face
-button) to pick up items and lift or put down objects. **Back** gives it back. An AI action already in progress
-finishes before the controller can start another action. Each player selects their own spell with the right stick or
-DS R + left/right, then holds DS X to cast. While a party member is controlled, each player's radial appears at half
-size in their screen quadrant, and a spell change briefly shows its icon there. The character must be able to cast the
-selected spell. Settings → Local co-op → "Controllers take party members" turns it off. A controlled party member can also
-walk into map exits and entrances and take everyone there (Settings → Local co-op → "Party members use map exits", on by
-default). Not recorded in replays.
+### Option 1: one window, extra controllers drive your party members
 
-With one window, every connected controller can also advance dialogue, skip cutscenes and use the menus (Settings →
-Local co-op → "All controllers use menus", on by default). On the field, extra controllers only move their own party
-member.
+Use this to play the normal single-player game with friends on the couch.
 
+1. Connect the gamepads and load a save that has at least one party member (the NPCs that follow you).
+2. Player 1 plays as usual (keyboard or the first gamepad).
+3. On another gamepad press **Start**: it takes the next free party member. Press **Back** to give the member back to the AI.
+4. Each extra player controls their party member with:
+
+| Action | Gamepad (default) |
+|---|---|
+| Move | Left stick |
+| Attack | DS A button (right face button) |
+| Jump | DS B button (bottom face button) |
+| Pick up items, lift or put down objects | DS Y button (left face button) |
+| Choose a spell | Right stick, or DS R + left/right |
+| Cast the chosen spell | Hold DS X (top face button) |
+
+An action the AI already started finishes before the controller can begin another. The character must be able to cast the
+selected spell. While a member is controlled, each player's spell radial appears at half size in their screen quadrant.
+Controlled party members are not recorded in replays.
+
+Related options (all on by default except where noted):
+
+- **Controllers take party members**: turns the Start/Back takeover on or off.
+- **Party members use map exits**: a controlled member can walk into map exits and entrances and take everyone there.
+- **All controllers use menus**: any connected controller can advance dialogue, skip cutscenes and use menus. On the field
+  extra controllers only move their own member.
+- **Dynamic camera**: with more than one player the camera zooms out (from your camera distance setting, never closer, up
+  to 400%) and moves to keep every player in view. It centers on the players and favors player 1 near the edge of the view.
+  With one player the camera distance setting is used.
+- **Party members interact (WIP, off by default)**: lets party members talk to townsfolk, shops and crystals. Not working
+  reliably yet.
+
+### Option 2: one window per player
+
+Settings → Local co-op → **Local players** (1–4), or start with `--players <n>`, opens one window per player, tiled on the
+screen. Each window is its own console with its own save (`cfie.sav`, `cfie.p2.sav`, …) and its own controller (player N
+uses the N-th connected gamepad). Players join each other through the game's own multiplayer menus. Only the first
+window writes `settings.ini`, and closing it does not close the others.
 Hotkeys: **F1** (or R + Start on a gamepad) opens the settings menu over the game, which keeps running without input so
 online play stays in sync; **F2** swaps the screens, **F3** shows or hides the picture-in-picture, **F4** moves the side
 screen of the main + side layout, **F5** switches the renderer, **F6/F7** lower or raise the resolution, **F8** cycles
