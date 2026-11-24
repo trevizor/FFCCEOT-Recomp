@@ -259,6 +259,7 @@ void run_step(const std::string& step, const Hooks& hooks) {
     } else if (verb == "wheel") {
         SDL_Event e{};
         e.type = SDL_EVENT_MOUSE_WHEEL;
+        if (SDL_Window* window = host::window()) e.wheel.windowID = SDL_GetWindowID(window);
         e.wheel.y = static_cast<float>(std::atoi(arg.c_str()));
         e.wheel.direction = SDL_MOUSEWHEEL_NORMAL;
         SDL_PushEvent(&e);

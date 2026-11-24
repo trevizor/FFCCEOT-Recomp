@@ -1,11 +1,15 @@
 // Settings: the settings.ini round trip (every key, including the interface ones and the bindings) and the binding
 // swap rules of the controls window.
 #include <cstdio>
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <limits>
 
 #include "settings.hpp"
+#include "ntr/recomp.h"
+
+extern "C" void cfie_camera_distance(NtrCpu* c);
 
 static int failures = 0;
 #define CHECK(cond)                                                                       \
@@ -134,6 +138,37 @@ void test_camera_coordinates() {
           std::numeric_limits<int32_t>::min());
 }
 
+void test_camera_hook() {
+    std::array<uint32_t, 1024> page{};
+    uint8_t* pages[] = {reinterpret_cast<uint8_t*>(page.data())};
+    NtrCpu cpu{};
+    cpu.read_pages = pages;
+    cpu.write_pages = pages;
+    cpu.r[0] = 0x100;
+    cpu.r[2] = 0x200;
+    cpu.r[14] = 0x0208468F;
+    ntr_wr32(&cpu, 0x100, uint32_t(-300));
+    ntr_wr32(&cpu, 0x104, 200);
+    ntr_wr32(&cpu, 0x108, 80);
+    ntr_wr32(&cpu, 0x200, 100);
+    ntr_wr32(&cpu, 0x204, 100);
+    ntr_wr32(&cpu, 0x208, 80);
+
+    cfie::camera_distance = 100;
+    cfie_camera_distance(&cpu);
+    CHECK(int32_t(ntr_rd32(&cpu, 0x100)) == -300);
+    cfie::camera_distance = 400;
+    cpu.r[14] = 0x02054603;
+    cfie_camera_distance(&cpu);
+    CHECK(int32_t(ntr_rd32(&cpu, 0x100)) == -300);
+    cpu.r[14] = 0x0208468F;
+    cfie_camera_distance(&cpu);
+    CHECK(int32_t(ntr_rd32(&cpu, 0x100)) == -1500);
+    CHECK(ntr_rd32(&cpu, 0x104) == 500 && ntr_rd32(&cpu, 0x108) == 80);
+    CHECK(ntr_rd32(&cpu, 0x200) == 100 && ntr_rd32(&cpu, 0x204) == 100);
+    cfie::camera_distance = cfie::kCameraDistanceDefault;
+}
+
 void test_camera_binding_migration() {
     using input::Action;
     using input::PadInput;
@@ -207,6 +242,7 @@ int main() {
     test_defaults_survive();
     test_set_setting();
     test_camera_coordinates();
+    test_camera_hook();
     test_camera_binding_migration();
     test_alpha_defaults();
     test_assign_key_swaps();

@@ -18,7 +18,8 @@ target_include_directories(test_input PRIVATE ${PROJECT_SOURCE_DIR}/runtime/src)
 add_test(NAME input COMMAND test_input)
 
 # settings.ini round trip and the controls window's binding rules.
-add_executable(test_settings test_settings.cpp ${PROJECT_SOURCE_DIR}/game/src/settings.cpp ${PROJECT_SOURCE_DIR}/game/src/input.cpp)
+add_executable(test_settings test_settings.cpp ${PROJECT_SOURCE_DIR}/game/src/settings.cpp ${PROJECT_SOURCE_DIR}/game/src/input.cpp
+  ${PROJECT_SOURCE_DIR}/game/src/cfie_hooks.cpp)
 target_include_directories(test_settings PRIVATE ${PROJECT_SOURCE_DIR}/game/src)
 target_link_libraries(test_settings PRIVATE ntr_runtime ntr_common SDL3::SDL3-static)
 add_test(NAME settings COMMAND test_settings)

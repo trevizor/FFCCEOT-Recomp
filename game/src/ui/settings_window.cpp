@@ -624,7 +624,7 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
         number_row(leftPane, rightPane, "Camera distance", SETTING(camera_distance),
             "The field camera's distance as a percentage of the game's own distance. Mouse wheel or the stick clicks "
             "change it by 25%. At large distances the edges of a level or missing objects may become visible. "
-            "Cutscenes and other cameras keep their original distance.", cfie::kCameraDistanceMin,
+            "Other camera setups keep their original distance; multiplayer and cutscenes are less tested.", cfie::kCameraDistanceMin,
             cfie::kCameraDistanceMax, cfie::kCameraDistanceStep);
         enum_row(
             leftPane, rightPane, "Language", SETTING(language), {0, 1, 2, 3}, {"English", "French", "German", "Spanish"},
