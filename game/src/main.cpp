@@ -79,7 +79,8 @@ std::map<std::string, std::string> emulation_settings(const Settings& s) {
             {"fast_saving", s.fast_saving ? "1" : "0"},
             {"skip_logos", s.skip_logos ? "1" : "0"},
             {"analog_movement", analog[std::clamp(int(s.controls.analog_movement), 0, 2)]},
-            {"aspect", std::to_string(int(s.aspect))}};
+            {"aspect", std::to_string(int(s.aspect))},
+            {"camera_distance", std::to_string(s.camera_distance)}};
 }
 
 class SdlHost final : public ntr::Host {
@@ -419,6 +420,17 @@ private:
                     if (settings.controls.pad[i] == input::PadInput::button(b)) presses_ |= kDsBits[i];
                 break;
             }
+            case SDL_EVENT_MOUSE_WHEEL:
+                if (settings.controls.camera_wheel && !input_hold_ && (script.empty() || mix_real_input) &&
+                    (e.wheel.windowID == SDL_GetWindowID(window_) ||
+                     (window2_ && e.wheel.windowID == SDL_GetWindowID(window2_))) && std::isfinite(e.wheel.y)) {
+                    const float y = e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -e.wheel.y : e.wheel.y;
+                    camera_wheel_ = std::clamp(camera_wheel_ + y, -14.0f, 14.0f);
+                    const int steps = int(camera_wheel_);
+                    camera_wheel_ -= float(steps);
+                    if (steps) change_camera_distance(-steps);
+                }
+                break;
             default: break;
             }
         }
@@ -446,7 +458,10 @@ private:
         }
         const bool ui_open = ui::any_document_visible();
         if (ui_was_open_ && !ui_open) resumed();
-        if (ui_open) input_hold_ = true;  // (the interface has the keys: the game gets nothing while it is open)
+        if (ui_open) {
+            input_hold_ = true;  // (the interface has the keys: the game gets nothing while it is open)
+            camera_wheel_ = 0;
+        }
         ui_was_open_ = ui_open;
         return true;
     }
@@ -715,7 +730,16 @@ private:
         if (audio_) SDL_SetAudioStreamGain(audio_, settings.volume / 100.0f);
         cfie::online_buffer = settings.online_buffer;
         cfie::fast_saving = settings.fast_saving;
+        cfie::camera_distance = settings.camera_distance;
         title_dirty_ = true;
+    }
+
+    void change_camera_distance(int steps) {
+        const int distance = std::clamp(settings.camera_distance + steps * cfie::kCameraDistanceStep,
+                                        cfie::kCameraDistanceMin, cfie::kCameraDistanceMax);
+        if (distance == settings.camera_distance) return;
+        settings.camera_distance = distance;
+        apply_settings();
     }
 
     // The bindable app actions (pressed once).
@@ -723,6 +747,8 @@ private:
         video::LayoutSettings& layout = settings.layout;
         switch (a) {
         case input::Action::Fullscreen: toggle_fullscreen(); return;
+        case input::Action::CameraIn: change_camera_distance(-1); return;
+        case input::Action::CameraOut: change_camera_distance(1); return;
         case input::Action::SwapScreens: layout.swap = !layout.swap; break;
         case input::Action::OtherScreen:
             if (layout.layout != video::Layout::Single) return;
@@ -923,8 +949,10 @@ private:
             down[i] = (c.key[i] != SDL_SCANCODE_UNKNOWN && k[c.key[i]]) || input::pad_held(gamepad_, c.pad[i], dead);
         // A replay is the only input the game gets: the real keyboard, mouse and gamepad are ignored (--mix-real-input).
         const bool exclusive = !script.empty() && !mix_real_input;
-        if (exclusive)
+        if (exclusive) {
             for (int i = 0; i < input::kFirstAppAction; i++) down[i] = false;
+            down[int(input::Action::CameraIn)] = down[int(input::Action::CameraOut)] = false;
+        }
         if (recorder.is_open() && k[SDL_SCANCODE_F12] != mark_down_) {
             mark_down_ = k[SDL_SCANCODE_F12];
             if (mark_down_) {
@@ -1314,6 +1342,7 @@ private:
     bool skipping_ = false;
     bool input_active_ = false;
     bool input_hold_ = false;
+    float camera_wheel_ = 0;
     ring::State ring_;                 // the spell radial: where the right stick points
     uint64_t ring_ticks_ = 0;          // the game's spell bar updates seen, and the frame of the last one
     uint64_t ring_tick_frame_ = 0;
@@ -2014,6 +2043,7 @@ int main(int argc, char** argv) {
                 g.options.language = firmware_language(host.settings.language);
                 cfie::online_buffer = host.settings.online_buffer;
                 cfie::fast_saving = host.settings.fast_saving;
+                cfie::camera_distance = host.settings.camera_distance;
 
                 auto runtime = ntr::Runtime::create(std::move(g.rom), g.module.code(), host, std::move(g.options));
                 host.attach(runtime.get());

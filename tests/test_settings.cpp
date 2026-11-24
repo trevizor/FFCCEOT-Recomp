@@ -2,6 +2,8 @@
 // swap rules of the controls window.
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
+#include <limits>
 
 #include "settings.hpp"
 
@@ -29,6 +31,8 @@ void test_round_trip() {
     a.preset_chosen = true;
     a.volume = 40;
     a.hud_scale = 150;
+    a.camera_distance = 275;
+    a.controls.camera_wheel = false;
     a.language = GameLanguage::German;
     a.controls.spell_ring = false;
     a.controls.spell_ring_orientation = ring::Orientation::Top;
@@ -48,6 +52,8 @@ void test_round_trip() {
     CHECK(b.preset_chosen);
     CHECK(b.volume == 40);
     CHECK(b.hud_scale == 150);
+    CHECK(b.camera_distance == 275);
+    CHECK(!b.controls.camera_wheel);
     CHECK(b.language == GameLanguage::German);
     CHECK(b.controls == a.controls);
     CHECK(!b.controls.spell_ring);
@@ -109,7 +115,53 @@ void test_set_setting() {
     CHECK(s.texture_smoothing == ntr::TextureSmoothing::Smooth);
     CHECK(!set_setting(s, "graphics.texture_smoothing", "blurry"));
     CHECK(s.texture_smoothing == ntr::TextureSmoothing::Smooth);
+    CHECK(s.camera_distance == 100);
+    CHECK(set_setting(s, "game.camera_distance", "50") && s.camera_distance == 50);
+    CHECK(set_setting(s, "game.camera_distance", "400") && s.camera_distance == 400);
+    CHECK(set_setting(s, "game.camera_distance", "1000") && s.camera_distance == 400);
+    CHECK(set_setting(s, "game.camera_distance", "0") && s.camera_distance == 50);
+    CHECK(!set_setting(s, "game.camera_distance", "bad") && s.camera_distance == 50);
     CHECK(!set_setting(s, "no.such_key", "1"));
+}
+
+void test_camera_coordinates() {
+    CHECK(cfie::camera_coordinate(-300, 100, 100) == -300);
+    CHECK(cfie::camera_coordinate(-300, 100, 50) == -100);
+    CHECK(cfie::camera_coordinate(-300, 100, 400) == -1500);
+    CHECK(cfie::camera_coordinate(std::numeric_limits<int32_t>::max(), -1, 400) ==
+          std::numeric_limits<int32_t>::max());
+    CHECK(cfie::camera_coordinate(std::numeric_limits<int32_t>::min(), 1, 400) ==
+          std::numeric_limits<int32_t>::min());
+}
+
+void test_camera_binding_migration() {
+    using input::Action;
+    using input::PadInput;
+    const auto path = temp_ini();
+    {
+        std::ofstream f(path);
+        f << "controls.other_screen.pad = rightstick\ncontrols.swap_screens.pad = leftstick\n";
+    }
+    Settings s;
+    CHECK(load_settings(path, s));
+    CHECK(s.controls.pad[int(Action::OtherScreen)].kind == PadInput::Kind::None);
+    CHECK(s.controls.pad[int(Action::SwapScreens)].kind == PadInput::Kind::None);
+    CHECK(s.controls.pad[int(Action::CameraIn)] == PadInput::button(SDL_GAMEPAD_BUTTON_RIGHT_STICK));
+    CHECK(s.controls.pad[int(Action::CameraOut)] == PadInput::button(SDL_GAMEPAD_BUTTON_LEFT_STICK));
+
+    {
+        std::ofstream f(path);
+        f << "controls.other_screen.pad = south\ncontrols.a.pad = rightstick\n"
+             "controls.camera_out.pad = none\ncontrols.swap_screens.pad = leftstick\n";
+    }
+    Settings customized;
+    CHECK(load_settings(path, customized));
+    CHECK(customized.controls.pad[int(Action::OtherScreen)] == PadInput::button(SDL_GAMEPAD_BUTTON_SOUTH));
+    CHECK(customized.controls.pad[int(Action::A)] == PadInput::button(SDL_GAMEPAD_BUTTON_RIGHT_STICK));
+    CHECK(customized.controls.pad[int(Action::CameraIn)].kind == PadInput::Kind::None);
+    CHECK(customized.controls.pad[int(Action::CameraOut)].kind == PadInput::Kind::None);
+    CHECK(customized.controls.pad[int(Action::SwapScreens)] == PadInput::button(SDL_GAMEPAD_BUTTON_LEFT_STICK));
+    std::filesystem::remove(path);
 }
 
 void test_assign_key_swaps() {
@@ -154,6 +206,8 @@ int main() {
     test_round_trip();
     test_defaults_survive();
     test_set_setting();
+    test_camera_coordinates();
+    test_camera_binding_migration();
     test_alpha_defaults();
     test_assign_key_swaps();
     test_assign_pad_swaps();

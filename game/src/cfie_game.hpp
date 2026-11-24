@@ -1,7 +1,9 @@
 // State the game hooks (CFIE, CFIP) share with the frontend.
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <string>
 
 namespace cfie {
@@ -24,6 +26,17 @@ extern bool fast_saving;
 // this build moves a character by the stick its records carry, whatever its own setting, so all stay in step.
 // The 3D projection's aspect ratio (width over height, 4.12 fixed point): 0x1555 is the DS's 4:3.
 extern uint16_t aspect;
+inline constexpr int kCameraDistanceMin = 50;
+inline constexpr int kCameraDistanceMax = 400;
+inline constexpr int kCameraDistanceDefault = 100;
+inline constexpr int kCameraDistanceStep = 25;
+extern int camera_distance;  // percent of the game's distance; set and read on the game thread
+
+inline int32_t camera_coordinate(int32_t eye, int32_t target, int distance) {
+    const int64_t value = int64_t(target) + (int64_t(eye) - target) * distance / 100;
+    return int32_t(std::clamp(value, int64_t(std::numeric_limits<int32_t>::min()),
+                              int64_t(std::numeric_limits<int32_t>::max())));
+}
 enum class AnalogMovement { Off, SinglePlayer, Multiplayer };
 extern AnalogMovement analog_movement;
 

@@ -14,7 +14,7 @@ enum class Action {
     // DS buttons
     A, B, X, Y, L, R, Start, Select, Up, Down, Left, Right,
     // App actions (pressed once, not held)
-    OtherScreen, SwapScreens, Fullscreen, OpenMenu,
+    OtherScreen, SwapScreens, Fullscreen, OpenMenu, CameraIn, CameraOut,
     Count
 };
 constexpr int kActionCount = int(Action::Count);
@@ -38,6 +38,7 @@ struct Bindings {
     PadInput pad[kActionCount]{};
     bool stick_moves = true;  // the left stick also works as the D-pad
     bool spell_ring = true;   // the right stick picks the spell element in a radial (see spell_ring.hpp)
+    bool camera_wheel = true;  // the mouse wheel changes the camera distance
     ring::Orientation spell_ring_orientation = ring::Orientation::Sides;  // ... which way round (see spell_ring.hpp)
     int spell_ring_size = 70;  // its size, percent of the screen's height (the radial is that big across)
     int spell_ring_x = 50;    // where it sits on the screen, percent from the left (0 flush left, 100 flush right)

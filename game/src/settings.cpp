@@ -141,6 +141,10 @@ const Field kFields[] = {
     BOOL_FIELD("game.wii_cutscenes", wii_cutscenes),
     BOOL_FIELD("game.fast_loading", fast_loading),
     BOOL_FIELD("game.fast_saving", fast_saving),
+    Field{"game.camera_distance", [](const Settings& s) { return std::to_string(s.camera_distance); },
+          [](Settings& s, const std::string& v) {
+              return parse_int(v, cfie::kCameraDistanceMin, cfie::kCameraDistanceMax, s.camera_distance);
+          }},
     Field{"game.cpu_speed", [](const Settings& s) { return std::to_string(s.cpu_speed); },
           [](Settings& s, const std::string& v) {
               int n;
@@ -162,6 +166,7 @@ const Field kFields[] = {
           }},
     ENUM_FIELD("online.buffer", online_buffer, kOnlineBuffers),
     BOOL_FIELD("controls.stick_moves", controls.stick_moves),
+    BOOL_FIELD("controls.camera_wheel", controls.camera_wheel),
     BOOL_FIELD("controls.spell_ring", controls.spell_ring),
     ENUM_FIELD("controls.spell_ring_orientation", controls.spell_ring_orientation, kRingOrientations),
     Field{"controls.spell_ring_size", [](const Settings& s) { return std::to_string(s.controls.spell_ring_size); },
@@ -238,6 +243,7 @@ bool load_settings(const std::filesystem::path& path, Settings& s) {
     std::ifstream f(path);
     if (!f) return false;
     std::string line;
+    bool camera_in_pad = false, camera_out_pad = false;
     while (std::getline(f, line)) {
         line = trim(line);
         if (line.empty() || line[0] == '#') continue;
@@ -251,8 +257,27 @@ bool load_settings(const std::filesystem::path& path, Settings& s) {
         }
         for (const Field& fd : kFields)
             if (key == fd.key) fd.set(s, value);
-        set_binding(s, key, value);
+        if (set_binding(s, key, value)) {
+            if (key == "controls.camera_in.pad") camera_in_pad = true;
+            if (key == "controls.camera_out.pad") camera_out_pad = true;
+        }
     }
+    // Older files assigned the stick clicks to the screen actions. Keep any custom use of a click instead.
+    auto migrate_camera_pad = [&](input::Action camera, input::Action legacy, bool present) {
+        if (present) return;
+        const int camera_index = int(camera), legacy_index = int(legacy);
+        const input::PadInput wanted = input::Bindings::defaults().pad[camera_index];
+        if (!(s.controls.pad[camera_index] == wanted)) return;
+        for (int i = 0; i < input::kActionCount; i++) {
+            if (i != camera_index && i != legacy_index && s.controls.pad[i] == wanted) {
+                s.controls.pad[camera_index] = {};
+                return;
+            }
+        }
+        if (s.controls.pad[legacy_index] == wanted) s.controls.pad[legacy_index] = {};
+    };
+    migrate_camera_pad(input::Action::CameraIn, input::Action::OtherScreen, camera_in_pad);
+    migrate_camera_pad(input::Action::CameraOut, input::Action::SwapScreens, camera_out_pad);
     return true;
 }
 

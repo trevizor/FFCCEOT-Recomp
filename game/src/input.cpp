@@ -16,6 +16,7 @@ const ActionInfo kActions[kActionCount] = {
     {"up", "Up"},         {"down", "Down"},   {"left", "Left"},     {"right", "Right"},
     {"other_screen", "Show other screen"},    {"swap_screens", "Swap screens"},
     {"fullscreen", "Fullscreen"},         {"open_menu", "Open menu"},
+    {"camera_in", "Camera closer"},       {"camera_out", "Camera farther"},
 };
 
 // Settings-file names of the gamepad buttons, by position (SDL's own names call the bottom button "a").
@@ -72,10 +73,12 @@ Bindings Bindings::defaults() {
     bind(Action::Down, SDL_SCANCODE_DOWN, PadInput::button(SDL_GAMEPAD_BUTTON_DPAD_DOWN));
     bind(Action::Left, SDL_SCANCODE_LEFT, PadInput::button(SDL_GAMEPAD_BUTTON_DPAD_LEFT));
     bind(Action::Right, SDL_SCANCODE_RIGHT, PadInput::button(SDL_GAMEPAD_BUTTON_DPAD_RIGHT));
-    bind(Action::OtherScreen, SDL_SCANCODE_F3, PadInput::button(SDL_GAMEPAD_BUTTON_RIGHT_STICK));
-    bind(Action::SwapScreens, SDL_SCANCODE_F2, PadInput::button(SDL_GAMEPAD_BUTTON_LEFT_STICK));
+    bind(Action::OtherScreen, SDL_SCANCODE_F3, {});
+    bind(Action::SwapScreens, SDL_SCANCODE_F2, {});
     bind(Action::Fullscreen, SDL_SCANCODE_F11, {});
     bind(Action::OpenMenu, SDL_SCANCODE_F1, {});
+    bind(Action::CameraIn, SDL_SCANCODE_UNKNOWN, PadInput::button(SDL_GAMEPAD_BUTTON_RIGHT_STICK));
+    bind(Action::CameraOut, SDL_SCANCODE_UNKNOWN, PadInput::button(SDL_GAMEPAD_BUTTON_LEFT_STICK));
     return b;
 }
 

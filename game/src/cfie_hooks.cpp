@@ -17,6 +17,7 @@ OnlineBuffer online_buffer = OnlineBuffer::Low;
 bool fast_saving = true;
 AnalogMovement analog_movement = AnalogMovement::SinglePlayer;
 uint16_t aspect = 0x1555;
+int camera_distance = kCameraDistanceDefault;
 Stick stick;
 bool log_sounds = false;
 bool log_movies = false;
@@ -327,6 +328,17 @@ extern "C" void cfie_perspective_aspect(NtrCpu* c) {
     }
 }
 
+// Only the field camera's look-at call: other callers include the title and character creation.
+extern "C" void cfie_camera_distance(NtrCpu* c) {
+    if (c->r[14] != 0x0208468F || cfie::camera_distance == cfie::kCameraDistanceDefault) return;
+    const uint32_t eye = c->r[0], target = c->r[2];
+    for (uint32_t axis = 0; axis < 12; axis += 4) {
+        const int32_t e = int32_t(ntr_rd32(c, eye + axis));
+        const int32_t t = int32_t(ntr_rd32(c, target + axis));
+        ntr_wr32(c, eye + axis, uint32_t(cfie::camera_coordinate(e, t, cfie::camera_distance)));
+    }
+}
+
 extern "C" int cfie_player_animation_step(NtrCpu* c) {
     const uint32_t character = ntr_rd32(c, ntr_rd32(c, c->r[0] + 8) + 20);
     if (ntr_rd32(c, character + 364) != A->run_animation) return 0;
@@ -416,6 +428,7 @@ void* cfie::find_hook(const char* name) {
         {"cfie_apply_input", reinterpret_cast<void*>(&cfie_apply_input)},
         {"cfie_analog_move", reinterpret_cast<void*>(&cfie_analog_move)},
         {"cfie_perspective_aspect", reinterpret_cast<void*>(&cfie_perspective_aspect)},
+        {"cfie_camera_distance", reinterpret_cast<void*>(&cfie_camera_distance)},
         {"cfie_player_animation_step", reinterpret_cast<void*>(&cfie_player_animation_step)},
         {"cfie_card_backup_request", reinterpret_cast<void*>(&cfie_card_backup_request)},
         {"cfie_on_movie_open", reinterpret_cast<void*>(&cfie_on_movie_open)},

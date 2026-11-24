@@ -88,8 +88,12 @@ points, slower when it is pushed less; in multiplayer it needs every player on t
 directions). The right stick opens a radial of the six spell gems: point at one, then hold X to cast (the number keys
 1 to 6 do the same). The company logos before the title screen are skipped.
 
+Camera distance is adjustable from 50% to 400% in Settings → Game. Scroll the mouse wheel up or press R3 (right stick
+click) to move closer; scroll down or press L3 (left stick click) to move farther away, in 25% steps. The camera buttons
+can be rebound under Controls, and the wheel can be turned off in Settings → Input.
+
 Hotkeys: **F1** (or R + Start on a gamepad) opens the settings menu over the game, which keeps running without input so
-online play stays in sync; **F2** (left stick click) swaps the screens, **F3** (right stick click) shows or hides the picture-in-picture, **F4** moves the side
+online play stays in sync; **F2** swaps the screens, **F3** shows or hides the picture-in-picture, **F4** moves the side
 screen of the main + side layout, **F5** switches the renderer, **F6/F7** lower or raise the resolution, **F8** cycles
 the filter, **F9** cycles the 3D frame rate, **F10** cycles the layout and **F11** toggles borderless fullscreen. The
 menu works with the mouse, the keyboard (arrows, Enter, Q/E for tabs) or a gamepad (D-pad or stick, right face button
@@ -99,7 +103,7 @@ to change, shoulders for tabs). The Settings window ends with an **About** tab: 
 
 This is an early build: please report problems from the in-game menu or on the issue tracker.
 
-- **Experimental features** carry a warning icon in the settings: widescreen and HUD placement, 3D at 60 fps and at your
+- **Experimental features** carry a warning icon in the settings: camera distance, widescreen and HUD placement, 3D at 60 fps and at your
   display's refresh rate, frame pacing, stable and smoothed textures, analog movement in multiplayer, and everything
   online. They work, but have had less testing.
 - Not done on Linux yet: the crash dialog (logs and problem reports work) and local wireless between instances.

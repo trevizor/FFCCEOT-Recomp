@@ -75,7 +75,8 @@ std::string path_text(const fs::path& path) {
 bool is_experimental(const Rml::String& key) {
     static const char* const kRows[] = {"Aspect ratio", "HUD position", "HUD size", "3D frame rate", "Frame pacing",
                                         "Frame rate limit", "Stable textures", "Texture smoothing", "Analog movement",
-                                        "Console name", "Wi-Fi Connection server", "DNS server address", "Input buffer"};
+                                        "Console name", "Wi-Fi Connection server", "DNS server address", "Input buffer",
+                                        "Camera distance"};
     return std::find(std::begin(kRows), std::end(kRows), key) != std::end(kRows);
 }
 
@@ -567,6 +568,9 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             });
         bool_row(leftPane, rightPane, "Left stick moves too", [](auto& s) -> auto& { return s.controls.stick_moves; },
             "The left stick also moves the character and steers the menus, like the D-pad.");
+        bool_row(leftPane, rightPane, "Mouse wheel changes camera", [](auto& s) -> auto& { return s.controls.camera_wheel; },
+            "Scroll up to move the field camera closer, or down to move it farther away. The wheel scrolls the "
+            "interface normally while a menu is open.");
         number_row(
             leftPane, rightPane, "Stick deadzone", [](auto& s) -> auto& { return s.controls.deadzone; },
             "How far the stick has to be pushed before it counts. Raise it if the character drifts when you let go.",
@@ -617,6 +621,11 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             "Plays the game's own sound effects in these menus. They play while the game is running.");
 
         leftPane.add_section("Game");
+        number_row(leftPane, rightPane, "Camera distance", SETTING(camera_distance),
+            "The field camera's distance as a percentage of the game's own distance. Mouse wheel or the stick clicks "
+            "change it by 25%. At large distances the edges of a level or missing objects may become visible. "
+            "Cutscenes and other cameras keep their original distance.", cfie::kCameraDistanceMin,
+            cfie::kCameraDistanceMax, cfie::kCameraDistanceStep);
         enum_row(
             leftPane, rightPane, "Language", SETTING(language), {0, 1, 2, 3}, {"English", "French", "German", "Spanish"},
             "The language the game plays in. The USA release has English, French and Spanish; the European release "
