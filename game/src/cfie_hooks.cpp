@@ -445,6 +445,30 @@ extern "C" int cfie_exit_check_player(NtrCpu* c) {
     return 1;
 }
 
+// WIP (npc_interact). 0x0209926C (the main player's character), called by the game's flag update (0x02090660) at 0x020906BF
+// and 0x0209073D: the flags at 0x02121618 get bit 0 when the main player's character is NOT in state 35 (the
+// conversation), and the text window (0x020B4124) closes at once while that bit is set. A party member's conversation
+// would always close, since player 1 is not in it. So while a party member a controller has taken is in state 35 and
+// player 1 is not, the main player is answered as that party member: the conversation is played as player 1's.
+extern "C" int cfie_interact_as_main(NtrCpu* c) {
+    constexpr int kTalkState = 35;
+    const uint32_t lr = c->r[14];
+    if ((lr != 0x020906BF && lr != 0x0209073D) || !cfie::npc_interact || ntr_rd8(c, A->network + 2) != 0) return 0;
+    const auto state = [&](uint32_t character) {
+        const uint32_t controller = character ? ntr_rd32(c, character + 320) : 0;
+        return controller ? int(ntr_rd8(c, controller + 8)) : -1;
+    };
+    const uint32_t main_character = ntr_rd32(c, A->players + 572 * ntr_rd32(c, c->r[0] + 0x3174) + 328);
+    if (state(main_character) == kTalkState) return 0;
+    for (uint32_t slot = 1; slot <= 3; slot++) {
+        const uint32_t character = ntr_rd32(c, A->players + 572 * slot + 328);
+        if (!cfie::npc_input[slot].active || state(character) != kTalkState) continue;
+        c->r[0] = character;
+        return 1;
+    }
+    return 0;
+}
+
 // WIP, does not work yet (npc_interact, off by default). 0x02057AE0 (whether a character is the main player), called by
 // 0x02057AFC at 0x02057B19, which decides whether the character may start a conversation, a shop or use a crystal; the
 // talk state (0x0206080C) also asks at 0x020608FD, and 0x02086480 at 0x0208648F. A party member a controller has taken
@@ -735,6 +759,7 @@ void* cfie::find_hook(const char* name) {
         {"cfie_npc_input", reinterpret_cast<void*>(&cfie_npc_input)},
         {"cfie_exit_check_player", reinterpret_cast<void*>(&cfie_exit_check_player)},
         {"cfie_interact_character", reinterpret_cast<void*>(&cfie_interact_character)},
+        {"cfie_interact_as_main", reinterpret_cast<void*>(&cfie_interact_as_main)},
         {"cfie_perspective_aspect", reinterpret_cast<void*>(&cfie_perspective_aspect)},
         {"cfie_camera_distance", reinterpret_cast<void*>(&cfie_camera_distance)},
         {"cfie_player_animation_step", reinterpret_cast<void*>(&cfie_player_animation_step)},
