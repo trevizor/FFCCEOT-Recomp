@@ -678,7 +678,8 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
         leftPane.add_section("Camera");
         bool_row(leftPane, rightPane, "Dynamic camera", SETTING(dynamic_camera),
             "With more than one player (controllers that took party members, or a wireless or online game), the "
-            "camera zooms between 2x and 4x the game's distance and moves its target to keep everyone in view. It "
+            "camera zooms out from the camera distance below (never closer) up to 4x the game's distance, and moves "
+            "its target to keep everyone in view. It "
             "centers on the players, and follows player 1 more the closer they get to the edge of the view. With one "
             "player the camera distance below is used.");
         number_row(leftPane, rightPane, "Camera distance", SETTING(camera_distance),

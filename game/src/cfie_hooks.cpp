@@ -24,8 +24,10 @@ bool pads_use_menus = true;
 bool npc_interact = false;  // WIP
 
 CameraFraming frame_players(const float eye[3], const float target[3], const float (*players)[3], int count,
-                            float tan_half_fov, float aspect) {
+                            float tan_half_fov, float aspect, int min_distance) {
     CameraFraming out;
+    min_distance = std::min(min_distance, kDynamicCameraMax);
+    out.distance = min_distance;
     const float fx = target[0] - eye[0], fy = target[1] - eye[1], fz = target[2] - eye[2];
     const float dist = std::sqrt(fx * fx + fy * fy + fz * fz), horizontal = std::hypot(fx, fz);
     if (count < 1 || dist < 1 || horizontal < 1e-3f || tan_half_fov <= 0 || aspect <= 0) return out;
@@ -45,7 +47,7 @@ CameraFraming frame_players(const float eye[3], const float target[3], const flo
     constexpr float kFill = 0.75f;  // the players stay inside this share of the view's half size
     const float half_w = dist * tan_half_fov * aspect, half_h = dist * tan_half_fov;
     const float need = std::max((max_a - min_a) / 2 / (kFill * half_w), (max_b - min_b) / 2 / (kFill * half_h));
-    const float scale = std::clamp(need, kDynamicCameraMin / 100.0f, kDynamicCameraMax / 100.0f);
+    const float scale = std::clamp(need, min_distance / 100.0f, kDynamicCameraMax / 100.0f);
     out.distance = int(std::lround(scale * 100));
     float center_a = (min_a + max_a) / 2, center_b = (min_b + max_b) / 2;
     // Player 1 is the one that must not be lost: the closer they are to the view's edge, the more it follows them.
@@ -613,7 +615,7 @@ extern "C" void cfie_camera_distance(NtrCpu* c) {
     if (players >= 2) {
         const float ef[3] = {float(e[0]), float(e[1]), float(e[2])}, tf[3] = {float(t[0]), float(t[1]), float(t[2])};
         const cfie::CameraFraming f =
-            cfie::frame_players(ef, tf, positions, players, view_tan_half_fov, view_aspect);
+            cfie::frame_players(ef, tf, positions, players,             view_tan_half_fov, view_aspect, cfie::camera_distance);
         want_distance = float(f.distance), want_x = f.shift_x, want_z = f.shift_z;
         if (!glide.active) glide = {true, float(cfie::camera_distance), 0, 0};
     } else if (!glide.active) {

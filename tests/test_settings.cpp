@@ -196,20 +196,24 @@ void test_frame_players() {
     const float eye[3] = {500000, 300000, 500000}, target[3] = {0, 0, 0};
     const float tan_half = 0.175f, aspect = 4.0f / 3.0f;
     const float together[2][3] = {{0, 0, 0}, {20000, 0, 10000}};
-    cfie::CameraFraming f = cfie::frame_players(eye, target, together, 2, tan_half, aspect);
-    CHECK(f.distance == cfie::kDynamicCameraMin);
+    cfie::CameraFraming f = cfie::frame_players(eye, target, together, 2, tan_half, aspect, 200);
+    CHECK(f.distance == 200);
     CHECK(std::fabs(f.shift_x - 10000) < 1 && std::fabs(f.shift_z - 5000) < 1);  // centered between them
     const float apart[2][3] = {{0, 0, 0}, {-2000000, 0, 0}};
-    f = cfie::frame_players(eye, target, apart, 2, tan_half, aspect);
+    f = cfie::frame_players(eye, target, apart, 2, tan_half, aspect, 200);
     CHECK(f.distance == cfie::kDynamicCameraMax);
     // Out of reach of the zoom, the view follows player 1 (at 0) instead of the midpoint (-1000000).
     CHECK(f.shift_x > -100000);
     const float mid[2][3] = {{0, 0, 0}, {-1200000, 0, 0}};
-    f = cfie::frame_players(eye, target, mid, 2, tan_half, aspect);
-    CHECK(f.distance > cfie::kDynamicCameraMin && f.distance < cfie::kDynamicCameraMax);
+    f = cfie::frame_players(eye, target, mid, 2, tan_half, aspect, 200);
+    CHECK(f.distance > 200 && f.distance < cfie::kDynamicCameraMax);
     // A player on higher ground is higher on the screen, so the view has to be wider to keep both.
+    // The camera distance setting is the closest it gets, and the farthest is still 4x.
+    CHECK(cfie::frame_players(eye, target, together, 2, tan_half, aspect, 300).distance == 300);
+    CHECK(cfie::frame_players(eye, target, together, 2, tan_half, aspect, 400).distance == 400);
+    CHECK(cfie::frame_players(eye, target, together, 2, tan_half, aspect, 100).distance == 100);
     const float high[2][3] = {{0, 0, 0}, {0, 600000, 0}};
-    CHECK(cfie::frame_players(eye, target, high, 2, tan_half, aspect).distance > cfie::kDynamicCameraMin);
+    CHECK(cfie::frame_players(eye, target, high, 2, tan_half, aspect, 200).distance > 200);
 }
 
 void test_camera_binding_migration() {

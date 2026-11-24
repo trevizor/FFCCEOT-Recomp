@@ -34,18 +34,18 @@ extern int camera_distance;  // percent of the game's distance; set and read on 
 extern bool npc_exits;  // controlled party members trigger map exits and entrances
 extern bool npc_interact;  // WIP, does not work yet: controlled party members talk to characters, open shops and use crystals
 extern bool pads_use_menus;  // any connected controller operates menus, dialogue and cutscenes
-extern bool dynamic_camera;  // with several players the camera frames them all, 2x to 4x the game's distance
-inline constexpr int kDynamicCameraMin = 200;
+extern bool dynamic_camera;  // with several players the camera frames them all, from the camera distance setting to 4x
 inline constexpr int kDynamicCameraMax = 400;
 
-// Where the camera must be so every player is in view. Positions are (x, y, z) in the game's world, y up; the camera
-// looks from `eye` to `target`. `tan_half_fov` and `aspect` give the view's width at a distance.
+// Where the camera must be so every player is in view, no closer than `min_distance` (percent of the game's distance,
+// the camera distance setting). Positions are (x, y, z) in the game's world, y up; the camera looks from `eye` to
+// `target`. `tan_half_fov` and `aspect` give the view's width at a distance.
 struct CameraFraming {
     int distance = kDynamicCameraMax;  // percent of the game's distance
     float shift_x = 0, shift_z = 0;    // how far the target moves, in world units
 };
 CameraFraming frame_players(const float eye[3], const float target[3], const float (*players)[3], int count,
-                            float tan_half_fov, float aspect);
+                            float tan_half_fov, float aspect, int min_distance);
 
 inline int32_t camera_coordinate(int32_t eye, int32_t target, int distance) {
     const int64_t value = int64_t(target) + (int64_t(eye) - target) * distance / 100;

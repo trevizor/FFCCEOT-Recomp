@@ -93,7 +93,7 @@ click) to move closer; scroll down or press L3 (left stick click) to move farthe
 can be rebound under Controls, and the wheel can be turned off in Settings → Local co-op.
 
 Dynamic camera (Settings → Local co-op, on by default): with more than one player (controllers that took party members,
-or a wireless or online game) the camera zooms between 2x and 4x the game's distance and moves its target to keep every
+or a wireless or online game) the camera zooms out from the camera distance setting (never closer) up to 4x the game's distance and moves its target to keep every
 player in view. It centers on the players and follows player 1 more the closer they get to the edge of the view. With one
 player the camera distance setting is used.
 
