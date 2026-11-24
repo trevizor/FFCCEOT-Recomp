@@ -28,6 +28,26 @@ int element_of(int sector, Orientation orientation) {
     return orientation == Orientation::Top ? kTop[s] : kSides[s];
 }
 
+Layout layout(float x, float y, float width, float height, int size_percent, int x_percent, int y_percent,
+              int player, bool multiplayer) {
+    Layout result;
+    result.size = height * size_percent / 100.0f * (multiplayer ? 0.5f : 1.0f);
+    if (multiplayer) {
+        const float qx = x + (player % 2) * width / 2;
+        const float qy = y + (player / 2) * height / 2;
+        result.x = qx + width / 4;
+        result.y = qy + height / 4;
+        result.indicator_x = result.x;
+        result.indicator_y = qy + height * 0.07f;
+        result.indicator_size = height * 0.07f;
+    } else {
+        const float reach = kDiscRadius * result.size;
+        result.x = width > 2 * reach ? x + reach + (width - 2 * reach) * x_percent / 100.0f : x + width / 2;
+        result.y = height > 2 * reach ? y + reach + (height - 2 * reach) * y_percent / 100.0f : y + height / 2;
+    }
+    return result;
+}
+
 State pick(float x, float y, const State& previous, Orientation orientation, float open_at, float close_at, float margin) {
     const float length = std::hypot(x, y);
     State next;

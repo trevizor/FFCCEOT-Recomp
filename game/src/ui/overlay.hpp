@@ -19,11 +19,11 @@ protected:
     bool handle_nav_command(Rml::Event& event, NavCommand cmd) override;
 
 private:
-    void update_spell_ring();
+    void update_spell_ring(int player);
 
-    Rml::Element* mSpellRing = nullptr;  // the radial's root, made when it is first needed
-    Rml::Element* mSpellRingSlots[6] = {};
-    int mSpellRingSelected = -1;
+    Rml::Element* mSpellRing[4] = {};
+    Rml::Element* mSpellRingSlots[4][6] = {};
+    Rml::Element* mSpellIndicator[4] = {};
     Rml::Element* mCurrentToast = nullptr;
     Rml::Element* mMenuNotification = nullptr;
     clock::time_point mCurrentToastStartTime;

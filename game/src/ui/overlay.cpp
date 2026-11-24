@@ -126,27 +126,41 @@ void Overlay::show() {
 
 // The radial: a backdrop disc and six slots (a holder pointing at the centre, rotated, and the element's orb on it, not
 // rotated), laid out around the stick's screen. The root's `open` attribute grows it into view and shrinks it away.
-void Overlay::update_spell_ring() {
-    const SpellRingView& view = get_spell_ring();
-    if (mSpellRing == nullptr) {
-        if (!view.open) {
-            return;
-        }
-        mSpellRing = append(mDocument, "div");
-        mSpellRing->SetClass("spell-ring", true);
-        append(mSpellRing, "div")->SetClass("ring-backdrop", true);
+void Overlay::update_spell_ring(int player) {
+    const SpellRingView& view = get_spell_ring(player);
+    auto*& root = mSpellRing[player];
+    auto& slots = mSpellRingSlots[player];
+    auto*& indicator = mSpellIndicator[player];
+    const auto px = [](float v) { return std::to_string(std::lround(v)) + "px"; };
+    if (view.indicator >= 0 && !indicator) {
+        indicator = append(mDocument, "div");
+        indicator->SetClass("ring-orb", true);
+    }
+    if (indicator) {
+        for (int e = 0; e < 6; e++) indicator->SetClass("element" + std::to_string(e), e == view.indicator);
+        indicator->SetProperty("display", view.indicator >= 0 ? "block" : "none");
+        indicator->SetProperty("left", px(view.indicator_x - view.indicator_size / 2));
+        indicator->SetProperty("top", px(view.indicator_y - view.indicator_size / 2));
+        indicator->SetProperty("width", px(view.indicator_size));
+        indicator->SetProperty("height", px(view.indicator_size));
+    }
+    if (root == nullptr) {
+        if (!view.open) return;
+        root = append(mDocument, "div");
+        root->SetClass("spell-ring", true);
+        append(root, "div")->SetClass("ring-backdrop", true);
         for (int s = 0; s < ring::kSectors; s++) {
-            auto* slot = append(mSpellRing, "div");
+            auto* slot = append(root, "div");
             slot->SetClass("ring-slot", true);
             append(slot, "div")->SetClass("ring-holder", true);
             auto* orb = append(slot, "div");
             orb->SetClass("ring-orb", true);
-            mSpellRingSlots[s] = slot;
+            slots[s] = slot;
         }
     }
     // Which element each sector shows depends on the orientation.
     for (int s = 0; s < ring::kSectors; s++) {
-        auto* orb = mSpellRingSlots[s]->GetLastChild();
+        auto* orb = slots[s]->GetLastChild();
         const int element = ring::element_of(s, view.top ? ring::Orientation::Top : ring::Orientation::Sides);
         for (int e = 0; e < 6; e++) orb->SetClass("element" + std::to_string(e), e == element);
     }
@@ -157,9 +171,8 @@ void Overlay::update_spell_ring() {
         const float holder_w = size * ring::kHolderWidth, holder_h = holder_w * 160 / 192;  // (the holders' art is 192 x 160)
         const float orb = holder_w * 88 / 192;
         const float orb_offset = holder_w * 22 / 192;                     // (the orb sits in the holder's wide part)
-        const auto px = [](float v) { return std::to_string(std::lround(v)) + "px"; };
-        mSpellRing->SetProperty("transform-origin", px(view.x) + " " + px(view.y) + " 0px");
-        auto* backdrop = mSpellRing->GetFirstChild();
+        root->SetProperty("transform-origin", px(view.x) + " " + px(view.y) + " 0px");
+        auto* backdrop = root->GetFirstChild();
         const float disc = size * ring::kDiscRadius * 2;
         backdrop->SetProperty("left", px(view.x - disc / 2));
         backdrop->SetProperty("top", px(view.y - disc / 2));
@@ -169,7 +182,7 @@ void Overlay::update_spell_ring() {
             const float degrees = ring::sector_angle(s, view.top ? ring::Orientation::Top : ring::Orientation::Sides);
             const float a = degrees * 3.14159265f / 180.0f;
             const float dx = std::cos(a), dy = -std::sin(a);  // outward, on the screen
-            auto* slot = mSpellRingSlots[s];
+            auto* slot = slots[s];
             slot->SetProperty("left", px(view.x + dx * radius - holder_w / 2));
             slot->SetProperty("top", px(view.y + dy * radius - holder_h / 2));
             slot->SetProperty("width", px(holder_w));
@@ -184,12 +197,12 @@ void Overlay::update_spell_ring() {
         }
     }
     for (int s = 0; s < ring::kSectors; s++) {
-        mSpellRingSlots[s]->SetClass("selected", view.open && s == view.sector);
+        slots[s]->SetClass("selected", view.open && s == view.sector);
     }
     if (view.open) {
-        mSpellRing->SetAttribute("open", "");
+        root->SetAttribute("open", "");
     } else {
-        mSpellRing->RemoveAttribute("open");
+        root->RemoveAttribute("open");
     }
 }
 
@@ -198,7 +211,7 @@ void Overlay::update() {
     if (mDocument == nullptr) {
         return;
     }
-    update_spell_ring();
+    for (int player = 0; player < 4; player++) update_spell_ring(player);
     // Without transitions (tests) nothing would mark an element done; treat it as done once closed.
     const bool animated = host::animations_enabled();
 

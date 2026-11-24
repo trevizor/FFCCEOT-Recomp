@@ -33,7 +33,7 @@ EventCapture sEventCapture;
 
 std::deque<Toast> sToasts;
 bool sMenuNotificationRequested = false;
-SpellRingView sSpellRing;
+SpellRingView sSpellRing[4];
 }  // namespace
 
 bool initialize() noexcept {
@@ -446,12 +446,12 @@ bool consume_menu_notification_request() noexcept {
     return requested;
 }
 
-void set_spell_ring(const SpellRingView& view) noexcept {
-    sSpellRing = view;
+void set_spell_ring(int player, const SpellRingView& view) noexcept {
+    sSpellRing[player] = view;
 }
 
-const SpellRingView& get_spell_ring() noexcept {
-    return sSpellRing;
+const SpellRingView& get_spell_ring(int player) noexcept {
+    return sSpellRing[player];
 }
 
 void apply_scale() noexcept {

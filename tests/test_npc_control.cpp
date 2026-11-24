@@ -22,12 +22,63 @@ constexpr uint32_t kLeader = 0x023078CC;
 constexpr uint32_t kNpc = 0x02307D18;
 constexpr uint32_t kController = 0x02307EAC;
 constexpr uint32_t kInput = 0x02308000;
+constexpr uint32_t kSpellTable = 0x02308100;
+constexpr uint32_t kMagic = 0x02308200;
 
 uint32_t yaw_character = 0;
+int cast_calls = 0;
+bool spell_available = true;
+uint32_t expected_spell = 0;
+uint32_t expected_field = 0x0211677C;
 void movement_yaw(NtrCpu* c, uint32_t target) {
     CHECK(target == 0x02057221);
     yaw_character = c->r[0];
     c->r[0] = 0x4000;
+}
+
+void cast_game_call(NtrCpu* c, uint32_t target) {
+    switch (target) {
+    case 0x02057221:
+        movement_yaw(c, target);
+        break;
+    case 0x02057B21:
+        CHECK(c->r[0] == kNpc);
+        c->r[0] = 0x02308300;
+        break;
+    case 0x02090D69:
+        CHECK(c->r[0] == 0x02308300 + 184 && c->r[1] == expected_spell);
+        c->r[0] = spell_available;
+        break;
+    case 0x02061BC9:
+        CHECK(c->r[0] == expected_spell);
+        c->r[0] = kSpellTable;
+        break;
+    case 0x0209113D:
+        CHECK(c->r[0] == 123);
+        c->r[0] = kMagic;
+        break;
+    case 0x0205697D:
+        CHECK(c->r[0] == kNpc && c->r[1] == kMagic);
+        c->r[0] = 1;
+        break;
+    case 0x020578C9:
+        c->r[0] = 0;
+        break;
+    case 0x02059B2D:
+        c->r[0] = 1;
+        break;
+    case 0x0206C81D:
+        CHECK(c->r[0] == expected_field);
+        c->r[0] = 1;
+        break;
+    case 0x02058C95:
+        CHECK(c->r[0] == kNpc && c->r[1] == kMagic && c->r[2] == expected_spell && c->r[3] == 0);
+        CHECK(ntr_rd32(c, c->r[13]) == 0);
+        ++cast_calls;
+        break;
+    default:
+        CHECK(false);
+    }
 }
 
 void test_npc_input() {
@@ -72,11 +123,11 @@ void test_npc_input() {
     CHECK(ntr_rd32(&cpu, kInput) == 0x02060002 && yaw_character == 0);
 
     ntr_wr8(&cpu, kNetwork + 2, 0);
-    cfie::npc_input[1].buttons = 11;
+    cfie::npc_input[1].buttons = 0xD33;
     cpu.r[0] = 0x021218AC + 32 + 12;
     cpu.r[2] = 0;
     cfie_npc_buttons(&cpu);
-    CHECK(cpu.r[2] == 11);
+    CHECK(cpu.r[2] == 0xC03);
     CHECK(cfie::npc_buttons_read[1]);
     cpu.r[0] = 0x021218AC + 12;
     cpu.r[2] = 7;
@@ -97,6 +148,56 @@ void test_npc_input() {
     ntr_wr32(&cpu, kController + 28, kNpc);
     cfie::npc_input[1] = {};
     CHECK(cfie_npc_ai(&cpu) == 0);
+
+    cpu.r[0] = kController;
+    cpu.r[1] = kInput;
+    cpu.r[2] = 0x1234;
+    cpu.r[3] = 0x5678;
+    cpu.r[13] = 0x02309000;
+    cpu.r[14] = 0x2468;
+    ntr_wr16(&cpu, kSpellTable, 123);
+    ntr_wr32(&cpu, 0x021218AC + 32 + 20, 0x400);
+    ntr_host.call = cast_game_call;
+    expected_spell = 2;
+    cfie::npc_input[1] = {true, 0, 0, 0x400, 2};
+    cast_calls = 0;
+    spell_available = true;
+    cfie_npc_input(&cpu);
+    CHECK(cast_calls == 1);
+    CHECK(cpu.r[0] == kController && cpu.r[1] == kInput && cpu.r[2] == 0x1234 &&
+          cpu.r[3] == 0x5678 && cpu.r[13] == 0x02309000 && cpu.r[14] == 0x2468);
+    spell_available = false;
+    cfie_npc_input(&cpu);
+    CHECK(cast_calls == 1);
+    spell_available = true;
+    cfie::npc_input[1].spell = 6;
+    cfie_npc_input(&cpu);
+    CHECK(cast_calls == 1);
+    cfie::npc_input[1].spell = 2;
+    ntr_wr8(&cpu, kNetwork + 2, 2);
+    cfie_npc_input(&cpu);
+    CHECK(cast_calls == 1);
+    ntr_wr8(&cpu, kNetwork + 2, 0);
+    ntr_wr32(&cpu, 0x021218AC + 32 + 20, 0);
+    cfie_npc_input(&cpu);
+    CHECK(cast_calls == 1);
+    cfie::npc_input[1] = {true, 1, 0, 0x100, 2};
+    cfie_npc_input(&cpu);
+    CHECK(ntr_rd32(&cpu, kInput + 4) == 0 && ntr_rd32(&cpu, kInput + 12) == 0);
+
+    CHECK(cfie::select_release("CFIP"));
+    expected_field = 0x0211679C;
+    ntr_wr32(&cpu, kPlayers + 0x20 + 328, kLeader);
+    ntr_wr32(&cpu, kPlayers + 0x20 + 572 + 328, kNpc);
+    ntr_wr32(&cpu, 0x021218CC + 32 + 20, 0x400);
+    cfie::npc_input[1] = {true, 0, 0, 0x400, 2};
+    cfie_npc_input(&cpu);
+    CHECK(cast_calls == 2);
+    ntr_wr8(&cpu, kNetwork + 0x20 + 2, 1);
+    cfie_npc_input(&cpu);
+    CHECK(cast_calls == 2);
+    CHECK(cfie::select_release("CFIE"));
+    cfie::npc_input[1] = {};
 }
 }  // namespace
 

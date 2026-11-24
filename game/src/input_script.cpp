@@ -97,18 +97,20 @@ bool load(const std::filesystem::path& path, Script& script, std::string& error)
         else if (cmd == "rstick") s.rstick = ok = std::sscanf(arg.c_str(), "%d,%d", &s.rstick_x, &s.rstick_y) == 2;
         else if (cmd == "spell") ok = std::sscanf(arg.c_str(), "%d", &s.spell) == 1 && s.spell >= 0 && s.spell <= 5;
         else if (cmd == "npc") ok = std::sscanf(arg.c_str(), "%d,%d,%d", &s.npc_slot, &s.npc_x, &s.npc_y) == 3 && s.npc_slot >= 1 && s.npc_slot <= 3;
+        else if (cmd == "npc_rstick") ok = std::sscanf(arg.c_str(), "%d,%d,%d", &s.npc_rstick_slot, &s.npc_rstick_x, &s.npc_rstick_y) == 3 && s.npc_rstick_slot >= 1 && s.npc_rstick_slot <= 3;
         else if (cmd == "npc_button") {
             std::stringstream button_arg(arg);
             char comma = 0;
             std::string names;
             ok = bool(button_arg >> s.npc_button_slot >> comma >> names) && comma == ',' &&
                  s.npc_button_slot >= 1 && s.npc_button_slot <= 3 &&
-                 parse_buttons(names, s.npc_buttons) && !(s.npc_buttons & ~(ntr::KeyA | ntr::KeyB | ntr::KeyY));
+                 parse_buttons(names, s.npc_buttons) &&
+                 !(s.npc_buttons & ~(ntr::KeyA | ntr::KeyB | ntr::KeyX | ntr::KeyY | ntr::KeyR | ntr::KeyLeft | ntr::KeyRight));
         }
         else if (cmd == "shot") s.shot = arg, ok = !arg.empty();
         else if (cmd == "quit") s.quit = true;
         else ok = false;
-        if (cmd == "press" || cmd == "touch" || cmd == "stick" || cmd == "analog" || cmd == "rstick" || cmd == "npc" || cmd == "npc_button") {
+        if (cmd == "press" || cmd == "touch" || cmd == "stick" || cmd == "analog" || cmd == "rstick" || cmd == "npc" || cmd == "npc_button" || cmd == "npc_rstick") {
             std::uint64_t n = 0;
             if (in >> n) s.frames = std::max<std::uint64_t>(n, 1);
         }

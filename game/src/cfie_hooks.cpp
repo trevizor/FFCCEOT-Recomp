@@ -23,6 +23,7 @@ NpcInput npc_input[4];
 bool npc_buttons_read[4] = {};
 int npc_idle_ticks[4] = {1000, 1000, 1000, 1000};
 bool npc_control = true;
+bool npc_offline = true;
 bool log_sounds = false;
 bool log_movies = false;
 int force_movie = 0;
@@ -53,6 +54,7 @@ struct Addresses {
     uint32_t spell_actions;  // the field HUD's actions: (actions, element + 1) selects one
     uint32_t trigger_action;  // (actions, id): runs the handler of an action
     uint32_t blank_input_call;  // return address: a slot nobody's records came in for
+    uint32_t field_state;
 };
 constexpr Addresses kUsa = {
     0x027E0000,  // os_irq_table
@@ -74,7 +76,8 @@ constexpr Addresses kUsa = {
     0x02135148,  // spell_element
     0x02136D6C,  // spell_actions
     0x020C68A0,  // trigger_action
-    0x020ADF81  // blank_input_call
+    0x020ADF81,  // blank_input_call
+    0x0211677C  // field_state
 };
 constexpr Addresses kEur = {
     0x027E0000,  // os_irq_table
@@ -96,7 +99,8 @@ constexpr Addresses kEur = {
     0x02135168,  // spell_element
     0x02136D8C,  // spell_actions
     0x020C68BC,  // trigger_action
-    0x020ADF9D  // blank_input_call
+    0x020ADF9D,  // blank_input_call
+    0x0211679C  // field_state
 };
 const Addresses* A = &kUsa;  // the release being played (cfie::select_release)
 
@@ -130,6 +134,9 @@ struct SlotStick {
     uint8_t push = 0;     // how far it is pushed, 0 (at rest) to kFullPush
 };
 constexpr uint8_t kFullPush = 63;
+constexpr uint16_t kNpcActionButtons = 0x0C03;
+constexpr uint16_t kDsR = 0x0100;
+constexpr uint16_t kDsX = 0x0400;
 SlotStick slot_sticks[4];
 
 // The stick of player slot `player` (a character's +172), or null if the D-pad moves it as on the DS.
@@ -197,6 +204,7 @@ uint64_t spell_ticks() { return spell_tick_count.load(std::memory_order_relaxed)
 // 0x020C6C3C (the field HUD's pad updater, once per tick: r0 = its state): applies a requested spell element through the
 // game's action dispatcher, the call its R + D-pad handler (0x020C6CCC) makes.
 extern "C" void cfie_spell_pad(NtrCpu* c) {
+    cfie::npc_offline = ntr_rd8(c, A->network + 2) == 0;
     const int current = int(int8_t(ntr_rd8(c, A->spell_element)));
     spell_now.store(current, std::memory_order_relaxed);
     spell_tick_count.fetch_add(1, std::memory_order_relaxed);
@@ -334,7 +342,7 @@ extern "C" void cfie_npc_buttons(NtrCpu* c) {
     if (offset % 32 != 0) return;
     const uint32_t slot = offset / 32;
     if (slot < 1 || slot > 3 || !cfie::npc_input[slot].active || ntr_rd8(c, A->network + 2) != 0) return;
-    c->r[2] = cfie::npc_input[slot].buttons;
+    c->r[2] = cfie::npc_input[slot].buttons & kNpcActionButtons;
     cfie::npc_buttons_read[slot] = true;
 }
 
@@ -357,7 +365,51 @@ extern "C" void cfie_npc_input(NtrCpu* c) {
     cfie::npc_idle_ticks[slot] = 0;
     const cfie::NpcInput& in = cfie::npc_input[slot];
     if (!in.active || ntr_rd8(c, A->network + 2) != 0) return;
-    const float length = std::min(std::hypot(in.x, in.y), 1.0f);
+    // The usual X path only permits the main character. Validate as the player's cast does, then start the
+    // character-specific cast state used by companion AI, without changing the player's selected spell.
+    if (in.spell >= 0 && in.spell < 6 && (ntr_rd32(c, A->input_slots + 32 * uint32_t(slot) + 20) & kDsX)) {
+        const uint32_t r0 = c->r[0], r1 = c->r[1], r2 = c->r[2], r3 = c->r[3], lr = c->r[14];
+        c->r[0] = character;
+        ntr_call(c, 0x02057B21);
+        c->r[0] += 184;
+        c->r[1] = uint32_t(in.spell);
+        ntr_call(c, 0x02090D69);
+        const bool available = c->r[0] != 0;
+        c->r[0] = uint32_t(in.spell);
+        ntr_call(c, 0x02061BC9);
+        const uint32_t spell_id = ntr_rd16(c, c->r[0]);
+        c->r[0] = spell_id;
+        ntr_call(c, 0x0209113D);
+        const uint32_t magic = c->r[0];
+        bool valid = false;
+        if (magic) {
+            c->r[0] = character;
+            c->r[1] = magic;
+            ntr_call(c, 0x0205697D);
+            valid = c->r[0] != 0;
+        }
+        c->r[0] = character;
+        ntr_call(c, 0x020578C9);
+        const bool blocked = c->r[0] != 0;
+        c->r[0] = character;
+        ntr_call(c, 0x02059B2D);
+        const bool can_cast = c->r[0] != 0;
+        c->r[0] = A->field_state;
+        ntr_call(c, 0x0206C81D);
+        if (available && valid && !blocked && can_cast && c->r[0] != 0 &&
+            !(ntr_rd32(c, character + 132) & 8)) {
+            c->r[0] = character;
+            c->r[1] = magic;
+            c->r[2] = uint32_t(in.spell);
+            c->r[3] = 0;
+            c->r[13] -= 8;
+            ntr_wr32(c, c->r[13], 0);
+            ntr_call(c, 0x02058C95);
+            c->r[13] += 8;
+        }
+        c->r[0] = r0; c->r[1] = r1; c->r[2] = r2; c->r[3] = r3; c->r[14] = lr;
+    }
+    const float length = (in.buttons & kDsR) ? 0.0f : std::min(std::hypot(in.x, in.y), 1.0f);
     uint8_t angle = 0;
     int64_t speed = 0;
     if (length > 0) {

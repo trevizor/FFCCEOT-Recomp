@@ -53,12 +53,14 @@ extern Stick stick;
 struct NpcInput {
     bool active = false;
     float x = 0, y = 0;
-    uint16_t buttons = 0;  // DS A, B and Y
+    uint16_t buttons = 0;  // DS A, B, X and Y
+    int spell = 0;
 };
 extern NpcInput npc_input[4];
 extern bool npc_buttons_read[4];
 extern int npc_idle_ticks[4];
 extern bool npc_control;  // extra controllers take party members (Start); only with one window
+extern bool npc_offline;
 
 // Menu sounds: asks the game to play its sound effect `id` (its own number for it, as the game's menus pass it). The
 // effect starts at the game's next sound update, on the game's own thread; it is dropped if the game doesn't get there

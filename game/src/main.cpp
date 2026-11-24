@@ -1009,7 +1009,6 @@ private:
             ly = SDL_GetGamepadAxis(gamepad_, SDL_GAMEPAD_AXIS_LEFTY) / 32767.0f;
         }
         script_stick(lx, ly);
-        spell_ring(exclusive);
         cfie::Stick stick;
         if (const float length = std::hypot(lx, ly); length > dead) {
             const float diagonal = 0.38268343f * length;  // sin(22.5 degrees)
@@ -1048,6 +1047,7 @@ private:
         cfie::stick = stick;
         update_npc_pads(dead, input_hold_ || exclusive);
         script_npc();
+        spell_ring(exclusive);
         cfie::analog_movement = c.analog_movement;
         b &= ~(1u << 31);
         if (exclusive) presses_ = 0;
@@ -1122,20 +1122,89 @@ private:
                 number_down_[i] = down;
             }
         }
-        ui::SpellRingView view{ring_.open, ring_.sector, c.spell_ring_orientation == ring::Orientation::Top};
+        const auto now = std::chrono::steady_clock::now();
+        bool multiplayer = false;
+        for (int slot = 1; slot < 4; slot++) multiplayer |= cfie::npc_input[slot].active && cfie::npc_offline;
+        if (!multiplayer) spell_indicator_until_[0] = {};
+        const int current = cfie::spell_element();
+        if (current >= 0 && current < 6 && current != spell_elements_[0]) {
+            if (spell_elements_[0] >= 0 && multiplayer) spell_indicator_until_[0] = now + std::chrono::seconds(1);
+            spell_elements_[0] = current;
+        }
+        for (int slot = 1; slot < 4; slot++) {
+            auto& npc = cfie::npc_input[slot];
+            const bool active = npc.active && cfie::npc_offline;
+            if (!active) {
+                npc_ring_[slot] = {};
+                npc_selection_buttons_[slot] = 0;
+                spell_indicator_until_[slot] = {};
+                continue;
+            }
+            float x = 0, y = 0;
+            bool npc_scripted = false;
+            for (const ScriptStep& s : script) {
+                if (s.frame > f) break;
+                if (s.npc_rstick_slot == slot && f < s.frame + s.frames) {
+                    x = s.npc_rstick_x / 100.0f;
+                    y = s.npc_rstick_y / 100.0f;
+                    npc_scripted = true;
+                }
+            }
+            for (const ExtraPad& pad : extra_pads_) {
+                if (pad.slot != slot || pad.spell_hold || exclusive || bound || !c.spell_ring || npc_scripted) continue;
+                x = SDL_GetGamepadAxis(pad.pad, SDL_GAMEPAD_AXIS_RIGHTX) / 32767.0f;
+                y = SDL_GetGamepadAxis(pad.pad, SDL_GAMEPAD_AXIS_RIGHTY) / 32767.0f;
+            }
+            const ring::State previous = npc_ring_[slot];
+            npc_ring_[slot] = ring::pick(live && !input_hold_ && !ui::any_document_visible() &&
+                                               (npc_scripted || c.spell_ring) ? x : 0,
+                                           live && !input_hold_ && !ui::any_document_visible() &&
+                                               (npc_scripted || c.spell_ring) ? y : 0,
+                                           previous, c.spell_ring_orientation);
+            if (npc_ring_[slot].open && !previous.open) ui::play_sound(ui::Sound::RingOpen);
+            if (!npc_ring_[slot].open && previous.open) ui::play_sound(ui::Sound::RingClose);
+            int wanted = spell_elements_[slot];
+            if (npc_ring_[slot].open && (npc_ring_[slot].sector != previous.sector || !previous.open))
+                wanted = ring::element_of(npc_ring_[slot].sector, c.spell_ring_orientation);
+            const uint16_t selecting = live && !input_hold_ && !ui::any_document_visible() && (npc.buttons & ntr::KeyR)
+                ? npc.buttons & (ntr::KeyLeft | ntr::KeyRight) : 0;
+            const uint16_t pressed = selecting & ~npc_selection_buttons_[slot];
+            npc_selection_buttons_[slot] = selecting;
+            if (pressed & ntr::KeyRight) wanted = (wanted + 1) % 6;
+            else if (pressed & ntr::KeyLeft) wanted = (wanted + 5) % 6;
+            if (wanted != spell_elements_[slot]) {
+                spell_elements_[slot] = wanted;
+                spell_indicator_until_[slot] = now + std::chrono::seconds(1);
+                ui::play_sound(ui::Sound::RingMove);
+            }
+            npc.spell = spell_elements_[slot];
+        }
         if (presenter_.view_count() > 0) {
             int shown = 0;
             for (int i = 0; i < presenter_.view_count(); i++)
                 if (presenter_.view(i).screen == 0) shown = i;
             const auto& r = presenter_.view(shown).rect;
-            // The radial's size is a share of the screen's height; its position is a share of the room it has left on the screen
-            // (so 0 and 100 put it against the edges and it never leaves the screen).
-            view.size = r.h * c.spell_ring_size / 100.0f;
-            const float reach = ring::kDiscRadius * view.size;
-            view.x = r.w > 2 * reach ? r.x + reach + (r.w - 2 * reach) * c.spell_ring_x / 100.0f : r.x + r.w / 2;
-            view.y = r.h > 2 * reach ? r.y + reach + (r.h - 2 * reach) * c.spell_ring_y / 100.0f : r.y + r.h / 2;
+            ui::SpellRingView views[4]{};
+            for (int slot = 0; slot < 4; slot++) {
+                if (slot != 0 && (!cfie::npc_input[slot].active || !cfie::npc_offline)) continue;
+                int player = slot;
+                for (const ExtraPad& pad : extra_pads_)
+                    if (pad.slot == slot && slot != 0) player = pad.player;
+                const ring::State state = slot == 0 ? ring_ : npc_ring_[slot];
+                ui::SpellRingView view{state.open, state.sector, c.spell_ring_orientation == ring::Orientation::Top};
+                const auto layout = ring::layout(float(r.x), float(r.y), float(r.w), float(r.h), c.spell_ring_size,
+                                                 c.spell_ring_x, c.spell_ring_y, player, multiplayer);
+                view.x = layout.x; view.y = layout.y; view.size = layout.size;
+                view.indicator_x = layout.indicator_x; view.indicator_y = layout.indicator_y;
+                view.indicator_size = layout.indicator_size;
+                if (multiplayer && spell_elements_[slot] >= 0 && now < spell_indicator_until_[slot])
+                    view.indicator = spell_elements_[slot];
+                views[player] = view;
+            }
+            for (int player = 0; player < 4; player++) ui::set_spell_ring(player, views[player]);
+        } else {
+            for (int slot = 0; slot < 4; slot++) ui::set_spell_ring(slot, {});
         }
-        ui::set_spell_ring(view);
     }
 
     // Game thread. The controllers that take party members (see cfie_npc_input): opens the extra ones, and gives Start
@@ -1174,16 +1243,25 @@ private:
                     for (const ExtraPad& o : extra_pads_) taken |= o.slot == slot;
                     if (!taken) {
                         e.slot = slot;
+                        for (int player = 1; player < 4; player++) {
+                            bool used = false;
+                            for (const ExtraPad& o : extra_pads_) used |= o.player == player;
+                            if (!used) {
+                                e.player = player;
+                                break;
+                            }
+                        }
                         cfie::npc_buttons_read[slot] = false;
                     }
                 }
             }
-            if (!paused && back && !e.back) e.slot = 0;
+            if (!paused && back && !e.back) e.slot = 0, e.player = 0;
             e.start = start, e.back = back;
             if (paused || e.slot == 0) {
                 e.latch = {};
                 e.presses = 0;
                 e.frames_unread = 0;
+                e.spell_hold = paused;
             }
         }
         for (int slot = 1; slot < 4; slot++) cfie::npc_input[slot] = {};
@@ -1206,7 +1284,18 @@ private:
             uint16_t buttons = 0;
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::A)], dead)) buttons |= ntr::KeyA;
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::B)], dead)) buttons |= ntr::KeyB;
+            if (input::pad_held(e.pad, bindings.pad[int(input::Action::X)], dead)) buttons |= ntr::KeyX;
             if (input::pad_held(e.pad, bindings.pad[int(input::Action::Y)], dead)) buttons |= ntr::KeyY;
+            if (input::pad_held(e.pad, bindings.pad[int(input::Action::R)], dead)) buttons |= ntr::KeyR;
+            if (input::pad_held(e.pad, bindings.pad[int(input::Action::Left)], dead) || x < -dead) buttons |= ntr::KeyLeft;
+            if (input::pad_held(e.pad, bindings.pad[int(input::Action::Right)], dead) || x > dead) buttons |= ntr::KeyRight;
+            if (e.spell_hold) {
+                const float rx = SDL_GetGamepadAxis(e.pad, SDL_GAMEPAD_AXIS_RIGHTX) / 32767.0f;
+                const float ry = SDL_GetGamepadAxis(e.pad, SDL_GAMEPAD_AXIS_RIGHTY) / 32767.0f;
+                if (!(buttons & (ntr::KeyX | ntr::KeyR)) && std::hypot(rx, ry) < 0.4f) e.spell_hold = false;
+                buttons &= ~(ntr::KeyX | ntr::KeyR);
+                e.presses &= ~(ntr::KeyX | ntr::KeyR);
+            }
             const bool read = cfie::npc_buttons_read[e.slot] || ++e.frames_unread >= 30;
             if (read) e.frames_unread = 0;
             cfie::npc_buttons_read[e.slot] = false;
@@ -1228,7 +1317,11 @@ private:
                 const auto button = input::PadInput::button(SDL_GamepadButton(e.gbutton.button));
                 if (settings.controls.pad[int(input::Action::A)] == button) p.presses |= ntr::KeyA;
                 if (settings.controls.pad[int(input::Action::B)] == button) p.presses |= ntr::KeyB;
+                if (settings.controls.pad[int(input::Action::X)] == button) p.presses |= ntr::KeyX;
                 if (settings.controls.pad[int(input::Action::Y)] == button) p.presses |= ntr::KeyY;
+                if (settings.controls.pad[int(input::Action::R)] == button) p.presses |= ntr::KeyR;
+                if (settings.controls.pad[int(input::Action::Left)] == button) p.presses |= ntr::KeyLeft;
+                if (settings.controls.pad[int(input::Action::Right)] == button) p.presses |= ntr::KeyRight;
             }
             return true;
         }
@@ -1258,6 +1351,7 @@ private:
                 n.active = true;
                 n.buttons |= uint16_t(s.npc_buttons);
             }
+            if (s.npc_rstick_slot > 0) cfie::npc_input[s.npc_rstick_slot].active = true;
         }
     }
 
@@ -1489,7 +1583,9 @@ private:
         SDL_JoystickID id;
         SDL_Gamepad* pad;
         int slot = 0;
+        int player = 0;
         bool start = false, back = false;
+        bool spell_hold = false;
         ntr::InputLatch latch;
         uint32_t presses = 0;
         int frames_unread = 0;
@@ -1519,6 +1615,10 @@ private:
     bool input_hold_ = false;
     float camera_wheel_ = 0;
     ring::State ring_;                 // the spell radial: where the right stick points
+    ring::State npc_ring_[4]{};
+    int spell_elements_[4] = {-1, 0, 0, 0};
+    uint16_t npc_selection_buttons_[4]{};
+    std::chrono::steady_clock::time_point spell_indicator_until_[4]{};
     uint64_t ring_ticks_ = 0;          // the game's spell bar updates seen, and the frame of the last one
     uint64_t ring_tick_frame_ = 0;
     bool number_down_[6] = {};         // the number keys 1 to 6 (spell elements) were down last frame

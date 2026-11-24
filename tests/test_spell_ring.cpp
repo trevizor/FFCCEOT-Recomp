@@ -22,6 +22,15 @@ ring::State at(float degrees, float push, const ring::State& previous = {}) {
 }  // namespace
 
 int main() {
+    const auto single = ring::layout(100, 50, 800, 600, 70, 50, 50, 0, false);
+    CHECK(single.x == 500 && single.y == 350 && single.size == 420);
+    for (int player = 0; player < 4; player++) {
+        const auto quad = ring::layout(100, 50, 800, 600, 70, 50, 50, player, true);
+        CHECK(quad.size == single.size / 2);
+        CHECK(quad.x == 300 + 400 * (player % 2));
+        CHECK(quad.y == 200 + 300 * (player / 2));
+        CHECK(quad.indicator_x == quad.x && quad.indicator_y < quad.y);
+    }
     // Centres of the six sectors.
     for (int s = 0; s < ring::kSectors; s++) {
         const ring::State st = at(ring::sector_angle(s), 1.0f);

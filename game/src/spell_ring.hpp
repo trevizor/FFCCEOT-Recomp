@@ -20,6 +20,14 @@ struct State {
     int sector = -1;    // the sector it points at while open (0 = right, then counter-clockwise every 60 degrees)
 };
 
+struct Layout {
+    float x = 0, y = 0, size = 0;
+    float indicator_x = 0, indicator_y = 0, indicator_size = 0;
+};
+
+Layout layout(float x, float y, float width, float height, int size_percent, int x_percent, int y_percent,
+              int player, bool multiplayer);
+
 // The radial's state for the right stick (x to the right, y down, each -1 to 1) and its state a moment ago. It opens when the
 // stick is pushed past `open_at` and closes below `close_at` (so a stick wobbling at the edge does not flicker); the sector
 // changes only once the stick is `margin` degrees into the next one (so it does not chatter on a boundary).

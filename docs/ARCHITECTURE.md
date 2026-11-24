@@ -528,6 +528,15 @@ not a big rounded box (RmlUi drew seams across that).
   with `rstick x,y [frames]` pushes the right stick for the radial's picture and requests, unless it has `spell` steps.
 - Sounds: the game's own menu effects through `ui::play_sound` (open 1006, move 1004, close 1002), like the settings
   menu. They go through the game's sound manager and so change its memory (a state hash differs from a run without them).
+- With a controlled party member in offline single-window play, each controller has its own element and radial. The
+  radials are half the configured size and centred in player quadrants (1 top-left, 2 top-right, 3 bottom-left,
+  4 bottom-right). A changed element is shown for one real second at the top of its quadrant; this is a fallback
+  rather than a world-space character marker. Right stick and R + left/right both select; the latter does not move the
+  companion. Without a controlled companion, the original single-player radial layout is unchanged.
+- The normal X handler only starts a cast for the main character. Controlled NPCs use the per-character state entry
+  `0x02058C94`, also used by companion AI, after checking the field, character and selected spell through the same
+  game functions as the main player. The game owns the charge, release, effects and resource consumption. Selection
+  stays separate from the main player's global spell byte. NPC input and spell selections are not recorded in replays.
 - Netplay: the choice is local to a console, as R + D-pad is; this path was not played over a network.
 
 The menu's Controls page rebinds them: an input already used by another action

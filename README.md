@@ -98,8 +98,13 @@ on the screen. Each window is its own console with its own save (`cfie.sav`, `cf
 the first window writes `settings.ini`, and closing it does not close the others.
 
 Controllers for party members (offline, one window): with a party member from a save (an NPC), a gamepad other than
-yours takes it when you press **Start** on it (the next free member), moves it with the left stick, and gives it back
-with **Back**. Settings → Game → "Controllers take party members" turns it off. Not recorded in replays.
+yours takes it when you press **Start** on it (the next free member), moves it with the left stick, attacks with the
+configured DS A button (right face button by default), jumps with DS B (bottom face button), and uses DS Y (left face
+button) to pick up items and lift or put down objects. **Back** gives it back. An AI action already in progress
+finishes before the controller can start another action. Each player selects their own spell with the right stick or
+DS R + left/right, then holds DS X to cast. While a party member is controlled, each player's radial appears at half
+size in their screen quadrant, and a spell change briefly shows its icon there. The character must be able to cast the
+selected spell. Settings → Game → "Controllers take party members" turns it off. Not recorded in replays.
 
 Hotkeys: **F1** (or R + Start on a gamepad) opens the settings menu over the game, which keeps running without input so
 online play stays in sync; **F2** swaps the screens, **F3** shows or hides the picture-in-picture, **F4** moves the side
