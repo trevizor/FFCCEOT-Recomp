@@ -19,7 +19,7 @@ AnalogMovement analog_movement = AnalogMovement::SinglePlayer;
 uint16_t aspect = 0x1555;
 int camera_distance = kCameraDistanceDefault;
 int jump_landing_delay = 100;
-int mana_recovery_per_second = 0;
+int mana_recovery_hundredths_per_second = 0;
 bool dynamic_camera = true;
 bool npc_exits = true;
 bool mute_bgm = false;
@@ -498,12 +498,15 @@ extern "C" int cfie_interact_character(NtrCpu* c) {
 // (it runs, turns, animates and collides as the player does). Only offline: in a session every console must agree.
 extern "C" void cfie_npc_input(NtrCpu* c) {
     const uint32_t character = ntr_rd32(c, c->r[0] + 20);
-    static int mana_ticks = 0;
+    static int mana_ticks = 0, mana_remainder_hundredths = 0;
     if (character == ntr_rd32(c, A->players + 328)) {
-        if (cfie::mana_recovery_per_second <= 0 || ntr_rd8(c, A->network + 2) != 0) {
+        if (cfie::mana_recovery_hundredths_per_second <= 0 || ntr_rd8(c, A->network + 2) != 0) {
             mana_ticks = 0;
+            mana_remainder_hundredths = 0;
         } else if (++mana_ticks >= 30) {
             mana_ticks = 0;
+            const int recovery = cfie::mana_recovery_amount(cfie::mana_recovery_hundredths_per_second,
+                                                            mana_remainder_hundredths);
             for (uint32_t slot = 0; slot < 4; slot++) {
                 const uint32_t player = A->players + 572 * slot;
                 if (!ntr_rd32(c, player + 328)) continue;
@@ -512,7 +515,7 @@ extern "C" void cfie_npc_input(NtrCpu* c) {
                 const uint16_t maximum = ntr_rd16(c, player + kMaxMana);
                 if (current < maximum)
                     ntr_wr16(c, player + kMana,
-                             cfie::mana_after_recovery(current, maximum, cfie::mana_recovery_per_second));
+                             cfie::mana_after_recovery(current, maximum, recovery));
             }
         }
     }

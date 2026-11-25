@@ -659,11 +659,18 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             "How long a character remains in the landing recovery before another jump is available. 0x skips the "
             "landing recovery, and 0.5x makes it ready halfway through the original chain. The original setting "
             "preserves the game's timing. This affects offline play only; multiplayer characters must stay in step.");
-        number_row(
-            leftPane, rightPane, "Mana recovery per second", SETTING(mana_recovery_per_second),
-            "Mana restored to every active party member each second of field gameplay, up to their normal maximum. "
-            "The default of 0 disables recovery. This affects offline play only so every console remains in step.",
-            0, 20, 1, "/s");
+        std::vector<int> manaRates = {0, 25, 50};
+        std::vector<Rml::String> manaLabels = {"0 (off)", "0.25/s", "0.5/s"};
+        for (int rate = 1; rate <= 20; rate++) {
+            manaRates.push_back(rate * 100);
+            manaLabels.push_back(std::to_string(rate) + "/s");
+        }
+        enum_row(
+            leftPane, rightPane, "Mana recovery per second", SETTING(mana_recovery_hundredths_per_second),
+            std::move(manaRates), std::move(manaLabels),
+            "Mana restored to every active party member during field gameplay, up to their normal maximum. Fractional "
+            "rates accumulate into whole mana points over time. The default of 0 disables recovery. This affects "
+            "offline play only so every console remains in step.");
     });
 
     add_tab("Local co-op", [this](Rml::Element* content) {
@@ -680,8 +687,8 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             "changing this saves them and restarts the game with the new number of instances.", 1, 4, 1, "");
         bool_row(leftPane, rightPane, "One window for all instances", SETTING(local_one_window),
             "With more than one instance, they share one window, each in a quarter of it (side by side with two "
-            "instances), instead of a window each. Good for the Steam Deck and a single screen. Select shows or "
-            "hides the bottom screen of every quarter. Takes effect the next time the game starts.");
+            "instances), instead of a window each. Good for the Steam Deck and a single screen. Takes effect the next "
+            "time the game starts.");
 #endif
         bool_row(leftPane, rightPane, "Single camera Coop", SETTING(npc_control),
             "With a single instance, pressing Start on a second, third or fourth controller takes control of the "

@@ -1,6 +1,7 @@
 #include "settings.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <map>
@@ -38,6 +39,35 @@ bool parse_int(const std::string& v, int lo, int hi, int& out) {
         const int n = std::stoi(v, &used);
         if (used != v.size()) return false;
         out = std::clamp(n, lo, hi);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+std::string mana_rate(int hundredths) {
+    if (hundredths % 100 == 0) return std::to_string(hundredths / 100);
+    if (hundredths % 10 == 0) return std::to_string(hundredths / 100) + "." + std::to_string(hundredths / 10 % 10);
+    return std::to_string(hundredths / 100) + "." +
+           std::to_string(hundredths / 10 % 10) + std::to_string(hundredths % 10);
+}
+
+bool parse_mana_rate(const std::string& v, int& out) {
+    try {
+        size_t used = 0;
+        const double rate = std::stod(v, &used);
+        if (used != v.size()) return false;
+        if (!std::isfinite(rate) || rate < -20000000.0 || rate > 20000000.0) return false;
+        const double hundredths = rate * 100.0;
+        const int n = int(std::lround(hundredths));
+        if (std::fabs(hundredths - n) > 1e-7) return false;
+        if (rate < 0 || rate > 20) {
+            if (std::fabs(rate - std::round(rate)) > 1e-7) return false;
+            out = std::clamp(n, 0, 2000);
+            return true;
+        }
+        if (n != 0 && n != 25 && n != 50 && n % 100 != 0) return false;
+        out = n;
         return true;
     } catch (...) {
         return false;
@@ -149,9 +179,9 @@ const Field kFields[] = {
               return true;
           }},
     Field{"game.mana_recovery_per_second",
-          [](const Settings& s) { return std::to_string(s.mana_recovery_per_second); },
+          [](const Settings& s) { return mana_rate(s.mana_recovery_hundredths_per_second); },
           [](Settings& s, const std::string& v) {
-              return parse_int(v, 0, 20, s.mana_recovery_per_second);
+              return parse_mana_rate(v, s.mana_recovery_hundredths_per_second);
           }},
     Field{"game.camera_distance", [](const Settings& s) { return std::to_string(s.camera_distance); },
           [](Settings& s, const std::string& v) {
@@ -220,6 +250,10 @@ std::string trim(const std::string& s) {
 }
 
 }  // namespace
+
+std::string mana_recovery_rate_string(int hundredths_per_second) {
+    return mana_rate(hundredths_per_second);
+}
 
 std::string sanitize_console_name(const std::string& name) {
     std::string out;

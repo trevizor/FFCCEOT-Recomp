@@ -65,7 +65,7 @@ struct Settings {
     int cpu_speed = 4;         // ARM9 clock: 1, 2 or 4 times the DS's
     // Cheats
     int jump_landing_delay = 100;  // 0x, 0.5x or 1x the original delay before jumping after landing
-    int mana_recovery_per_second = 0;  // mana recovered by every active party member each second (0-20, offline)
+    int mana_recovery_hundredths_per_second = 0;  // 0.25, 0.5, or 1-20 mana/s (offline)
     int camera_distance = cfie::kCameraDistanceDefault;  // percent of the game's field-camera distance
     int local_players = 1;     // 1-4 windows of the game on this PC, each its own console and save (Windows)
     bool local_one_window = true;  // those players share one window, each in a quarter of it (not with extra windows)
@@ -86,6 +86,7 @@ struct Settings {
 // Returns false if the file does not exist.
 bool load_settings(const std::filesystem::path& path, Settings& s);
 bool save_settings(const std::filesystem::path& path, const Settings& s);
+std::string mana_recovery_rate_string(int hundredths_per_second);
 // Sets one setting by its settings.ini key and value ("display.aspect", "21:9"). False if either is not valid.
 bool set_setting(Settings& s, const std::string& key, const std::string& value);
 

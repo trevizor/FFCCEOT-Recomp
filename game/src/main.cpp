@@ -85,7 +85,7 @@ std::map<std::string, std::string> emulation_settings(const Settings& s) {
             {"analog_movement", analog[std::clamp(int(s.controls.analog_movement), 0, 2)]},
             {"aspect", std::to_string(int(s.aspect))},
             {"jump_landing_delay", std::to_string(s.jump_landing_delay)},
-            {"mana_recovery_per_second", std::to_string(s.mana_recovery_per_second)},
+            {"mana_recovery_per_second", mana_recovery_rate_string(s.mana_recovery_hundredths_per_second)},
             {"camera_distance", std::to_string(s.camera_distance)},
             {"dynamic_camera", s.dynamic_camera ? "1" : "0"},
             {"npc_exits", s.npc_exits ? "1" : "0"},
@@ -812,7 +812,7 @@ private:
         cfie::online_buffer = settings.online_buffer;
         cfie::fast_saving = settings.fast_saving;
         cfie::jump_landing_delay = settings.jump_landing_delay;
-        cfie::mana_recovery_per_second = settings.mana_recovery_per_second;
+        cfie::mana_recovery_hundredths_per_second = settings.mana_recovery_hundredths_per_second;
         cfie::camera_distance = settings.camera_distance;
         cfie::dynamic_camera = settings.dynamic_camera;
         cfie::npc_exits = settings.npc_exits;
@@ -839,8 +839,11 @@ private:
         case input::Action::CameraOut: change_camera_distance(1); return;
         case input::Action::SwapScreens: layout.swap = !layout.swap; break;
         case input::Action::OtherScreen:
-            if (layout.layout != video::Layout::Single) return;
-            layout.second_screen = !layout.second_screen;
+            if (combined_ || exporting_) pip_ = !pip_;
+            else {
+                if (layout.layout != video::Layout::Single) return;
+                layout.second_screen = !layout.second_screen;
+            }
             break;
         default: return;
         }
@@ -1163,16 +1166,6 @@ private:
         cfie::analog_movement = c.analog_movement;
         b &= ~(1u << 31);
         if (exclusive) presses_ = 0;
-        // Select shows or hides the bottom screen (a corner picture of the player's own picture).
-        if (!exclusive && (presses_ & ntr::KeySelect) && !ui::any_document_visible()) {
-            if (combined_ || exporting_) {
-                pip_ = !pip_;
-                update_layout();
-            } else if (settings.layout.layout == video::Layout::Single) {
-                settings.layout.second_screen = !settings.layout.second_screen;
-                update_layout();
-            }
-        }
         script_input(b, touching, sx, sy);
         const int tx = std::clamp(int(sx), 0, kScreenW - 1), ty = std::clamp(int(sy), 0, kScreenH - 1);
         recorder.add(frames_ + 1, b, presses_, touching, tx, ty, stick.x, stick.y);
@@ -2594,7 +2587,8 @@ int main(int argc, char** argv) {
                 cfie::online_buffer = host.settings.online_buffer;
                 cfie::fast_saving = host.settings.fast_saving;
                 cfie::jump_landing_delay = host.settings.jump_landing_delay;
-                cfie::mana_recovery_per_second = host.settings.mana_recovery_per_second;
+                cfie::mana_recovery_hundredths_per_second =
+                    host.settings.mana_recovery_hundredths_per_second;
                 cfie::camera_distance = host.settings.camera_distance;
                 cfie::dynamic_camera = host.settings.dynamic_camera;
                 cfie::npc_exits = host.settings.npc_exits;

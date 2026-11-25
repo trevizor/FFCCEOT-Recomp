@@ -38,7 +38,13 @@ extern bool pads_use_menus;  // any connected controller operates menus, dialogu
 extern bool dynamic_camera;  // with several players the camera frames them all, from the camera distance setting to 4x
 inline constexpr int kDynamicCameraMax = 400;
 extern int jump_landing_delay;  // 0, 50 or 100 percent of the original landing-to-jump delay (offline)
-extern int mana_recovery_per_second;  // mana restored to every active party member each second (offline)
+extern int mana_recovery_hundredths_per_second;  // mana restored to every active party member (offline)
+inline int mana_recovery_amount(int recovery_hundredths, int& remainder_hundredths) {
+    remainder_hundredths += std::max(recovery_hundredths, 0);
+    const int recovery = remainder_hundredths / 100;
+    remainder_hundredths %= 100;
+    return recovery;
+}
 inline uint16_t mana_after_recovery(uint16_t current, uint16_t maximum, int recovery) {
     return uint16_t(std::min<int>(current + std::max(recovery, 0), maximum));
 }
