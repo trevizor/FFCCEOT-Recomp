@@ -86,7 +86,6 @@ std::map<std::string, std::string> emulation_settings(const Settings& s) {
             {"aspect", std::to_string(int(s.aspect))},
             {"jump_landing_delay", std::to_string(s.jump_landing_delay)},
             {"mana_recovery_per_second", mana_recovery_rate_string(s.mana_recovery_hundredths_per_second)},
-            {"auto_pickup", std::to_string(int(s.auto_pickup))},
             {"camera_distance", std::to_string(s.camera_distance)},
             {"dynamic_camera", s.dynamic_camera ? "1" : "0"},
             {"npc_exits", s.npc_exits ? "1" : "0"},
@@ -814,7 +813,6 @@ private:
         cfie::fast_saving = settings.fast_saving;
         cfie::jump_landing_delay = settings.jump_landing_delay;
         cfie::mana_recovery_hundredths_per_second = settings.mana_recovery_hundredths_per_second;
-        cfie::auto_pickup = settings.auto_pickup;
         cfie::camera_distance = settings.camera_distance;
         cfie::dynamic_camera = settings.dynamic_camera;
         cfie::npc_exits = settings.npc_exits;
@@ -2591,7 +2589,6 @@ int main(int argc, char** argv) {
                 cfie::jump_landing_delay = host.settings.jump_landing_delay;
                 cfie::mana_recovery_hundredths_per_second =
                     host.settings.mana_recovery_hundredths_per_second;
-                cfie::auto_pickup = host.settings.auto_pickup;
                 cfie::camera_distance = host.settings.camera_distance;
                 cfie::dynamic_camera = host.settings.dynamic_camera;
                 cfie::npc_exits = host.settings.npc_exits;

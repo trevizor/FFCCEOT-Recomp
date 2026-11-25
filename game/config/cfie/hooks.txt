@@ -68,6 +68,3 @@ main 020aceb4 before cfie_on_movie_close
 # WIP, does not work yet: party members talking to characters (npc_interact); see cfie_interact_character.
 main 02057ae0 instead cfie_interact_character
 main 0209926c instead cfie_interact_as_main
-
-# Cheats: finish eligible ground pickups immediately, without the pickup animation.
-main 02066d24 instead cfie_auto_pickup

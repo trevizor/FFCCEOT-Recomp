@@ -24,7 +24,6 @@ bool dynamic_camera = true;
 bool npc_exits = true;
 bool mute_bgm = false;
 bool pads_use_menus = true;
-AutoPickup auto_pickup = AutoPickup::Off;
 bool npc_interact = false;  // WIP
 
 CameraFraming frame_players(const float eye[3], const float target[3], const float (*players)[3], int count,
@@ -100,8 +99,6 @@ struct Addresses {
     uint32_t trigger_action;  // (actions, id): runs the handler of an action
     uint32_t blank_input_call;  // return address: a slot nobody's records came in for
     uint32_t field_state;
-    uint32_t reference_set;
-    uint32_t pickup_finish;
 };
 constexpr Addresses kUsa = {
     0x027E0000,  // os_irq_table
@@ -124,9 +121,7 @@ constexpr Addresses kUsa = {
     0x02136D6C,  // spell_actions
     0x020C68A0,  // trigger_action
     0x020ADF81,  // blank_input_call
-    0x0211677C, // field_state
-    0x020CA7C4, // reference_set
-    0x02066D7C  // pickup_finish
+    0x0211677C  // field_state
 };
 constexpr Addresses kEur = {
     0x027E0000,  // os_irq_table
@@ -149,9 +144,7 @@ constexpr Addresses kEur = {
     0x02136D8C,  // spell_actions
     0x020C68BC,  // trigger_action
     0x020ADF9D,  // blank_input_call
-    0x0211679C, // field_state
-    0x020CA7E0, // reference_set
-    0x02066D98  // pickup_finish
+    0x0211679C  // field_state
 };
 const Addresses* A = &kUsa;  // the release being played (cfie::select_release)
 
@@ -301,42 +294,6 @@ extern "C" void cfie_on_movie_close(NtrCpu*) {
 // 0x02076FD0: the sound manager starts a sound effect (r1 = the manager, r2 = its id).
 extern "C" void cfie_on_sound_start(NtrCpu* c) {
     if (cfie::log_sounds) std::fprintf(stderr, "sound: start %u\n", c->r[2]);
-}
-
-extern "C" int cfie_auto_pickup(NtrCpu* c) {
-    if (cfie::auto_pickup == cfie::AutoPickup::Off || ntr_rd8(c, A->network + 2) != 0) return 0;
-    const uint32_t state = c->r[0], collision = c->r[1];
-    const uint32_t drop = ntr_rd32(c, state + 8);
-    const uint32_t hit = ntr_rd32(c, collision + 4);
-    if (!drop || !hit) return 0;
-    const uint32_t character = ntr_rd32(c, hit + 8);
-    const uint32_t vtable = ntr_rd32(c, drop);
-    if (!character || !vtable) return 0;
-    uint32_t saved[15];
-    std::memcpy(saved, c->r, sizeof saved);
-    const auto getter = [&](int offset) {
-        c->r[0] = drop;
-        c->r[14] = saved[14];
-        const uint32_t fn = ntr_rd32(c, vtable + uint32_t(offset));
-        if (!fn) return uint32_t(0);
-        ntr_call(c, fn);
-        return c->r[0];
-    };
-    const bool gold = getter(220) != 0;
-    const bool loot = !gold && getter(240) != 0;
-    if (!cfie::auto_pickup_allows(cfie::auto_pickup, gold, loot)) {
-        std::memcpy(c->r, saved, sizeof saved);
-        return 0;
-    }
-    c->r[0] = state + 12;
-    c->r[1] = character;
-    c->r[14] = saved[14];
-    ntr_call(c, A->reference_set | 1);
-    c->r[0] = state;
-    c->r[14] = saved[14];
-    ntr_call(c, A->pickup_finish | 1);
-    std::memcpy(c->r, saved, sizeof saved);
-    return 1;
 }
 
 // 0x0207713C: start background music (r1 = track id, 0 = stop).
@@ -840,7 +797,6 @@ void* cfie::find_hook(const char* name) {
         {"cfie_sound_update", reinterpret_cast<void*>(&cfie_sound_update)},
         {"cfie_spell_pad", reinterpret_cast<void*>(&cfie_spell_pad)},
         {"cfie_on_sound_start", reinterpret_cast<void*>(&cfie_on_sound_start)},
-        {"cfie_auto_pickup", reinterpret_cast<void*>(&cfie_auto_pickup)},
         {"cfie_pack_input", reinterpret_cast<void*>(&cfie_pack_input)},
         {"cfie_apply_input", reinterpret_cast<void*>(&cfie_apply_input)},
         {"cfie_analog_move", reinterpret_cast<void*>(&cfie_analog_move)},
