@@ -69,6 +69,7 @@ struct Settings {
     int damage_received_percent = 100;
     int damage_dealt_percent = 100;
     int xp_percent = 100;
+    bool fast_pickup_animation = false;
     int camera_distance = cfie::kCameraDistanceDefault;  // percent of the game's field-camera distance
     int local_players = 1;     // 1-4 windows of the game on this PC, each its own console and save (Windows)
     bool local_one_window = true;  // those players share one window, each in a quarter of it (not with extra windows)

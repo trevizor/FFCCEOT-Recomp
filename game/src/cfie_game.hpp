@@ -42,6 +42,13 @@ extern int mana_recovery_hundredths_per_second;  // mana restored to every activ
 extern int damage_received_percent;
 extern int damage_dealt_percent;
 extern int xp_percent;
+extern bool fast_pickup_animation;
+inline bool pickup_animation_extra_tick(int& remainder) {
+    remainder += 50;
+    if (remainder < 100) return false;
+    remainder -= 100;
+    return true;
+}
 inline uint32_t scale_game_value(uint32_t value, int percent) {
     if (value == 0 || percent == 100) return value;
     const uint64_t scaled = (uint64_t(value) * uint32_t(std::max(percent, 0)) + 50) / 100;
