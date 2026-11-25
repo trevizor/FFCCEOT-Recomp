@@ -214,7 +214,8 @@ const Field kFields[] = {
               int percent;
               return parse_multiplier(v, percent) && (s.xp_percent = percent, true);
           }},
-    BOOL_FIELD("game.fast_pickup_animation", fast_pickup_animation),
+    Field{"game.pickup_animation_speed", [](const Settings& s) { return std::to_string(s.pickup_animation_speed); },
+          [](Settings& s, const std::string& v) { return parse_int(v, 1, 10, s.pickup_animation_speed); }},
     Field{"game.camera_distance", [](const Settings& s) { return std::to_string(s.camera_distance); },
           [](Settings& s, const std::string& v) {
               return parse_int(v, cfie::kCameraDistanceMin, cfie::kCameraDistanceMax, s.camera_distance);

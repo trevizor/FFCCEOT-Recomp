@@ -89,7 +89,7 @@ std::map<std::string, std::string> emulation_settings(const Settings& s) {
             {"damage_received_multiplier", mana_recovery_rate_string(s.damage_received_percent)},
             {"damage_dealt_multiplier", mana_recovery_rate_string(s.damage_dealt_percent)},
             {"xp_multiplier", mana_recovery_rate_string(s.xp_percent)},
-            {"fast_pickup_animation", s.fast_pickup_animation ? "1" : "0"},
+            {"pickup_animation_speed", std::to_string(s.pickup_animation_speed)},
             {"camera_distance", std::to_string(s.camera_distance)},
             {"dynamic_camera", s.dynamic_camera ? "1" : "0"},
             {"npc_exits", s.npc_exits ? "1" : "0"},
@@ -820,7 +820,7 @@ private:
         cfie::damage_received_percent = settings.damage_received_percent;
         cfie::damage_dealt_percent = settings.damage_dealt_percent;
         cfie::xp_percent = settings.xp_percent;
-        cfie::fast_pickup_animation = settings.fast_pickup_animation;
+        cfie::pickup_animation_speed = settings.pickup_animation_speed;
         cfie::camera_distance = settings.camera_distance;
         cfie::dynamic_camera = settings.dynamic_camera;
         cfie::npc_exits = settings.npc_exits;
@@ -2600,7 +2600,7 @@ int main(int argc, char** argv) {
                 cfie::damage_received_percent = host.settings.damage_received_percent;
                 cfie::damage_dealt_percent = host.settings.damage_dealt_percent;
                 cfie::xp_percent = host.settings.xp_percent;
-                cfie::fast_pickup_animation = host.settings.fast_pickup_animation;
+                cfie::pickup_animation_speed = host.settings.pickup_animation_speed;
                 cfie::camera_distance = host.settings.camera_distance;
                 cfie::dynamic_camera = host.settings.dynamic_camera;
                 cfie::npc_exits = host.settings.npc_exits;

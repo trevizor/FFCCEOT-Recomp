@@ -23,7 +23,7 @@ int mana_recovery_hundredths_per_second = 0;
 int damage_received_percent = 100;
 int damage_dealt_percent = 100;
 int xp_percent = 100;
-bool fast_pickup_animation = false;
+int pickup_animation_speed = 1;
 bool dynamic_camera = true;
 bool npc_exits = true;
 bool mute_bgm = false;
@@ -228,16 +228,14 @@ extern "C" void cfie_scale_damage(NtrCpu* c) {
 
 static uint32_t pickup_animation_character[4]{};
 static uint16_t pickup_animation_position[4]{};
-static int pickup_animation_remainder[4]{};
 
 extern "C" void cfie_pickup_animation_start(NtrCpu* c) {
-    if (!cfie::fast_pickup_animation || ntr_rd8(c, A->network + 2) != 0) return;
+    if (cfie::pickup_animation_speed <= 1 || ntr_rd8(c, A->network + 2) != 0) return;
     const uint32_t character = c->r[0];
     const int32_t slot = int8_t(ntr_rd8(c, character + 172));
     if (slot < 0 || slot > 3) return;
     pickup_animation_character[slot] = character;
     pickup_animation_position[slot] = ntr_rd16(c, character + 0x7e4);
-    pickup_animation_remainder[slot] = 0;
 }
 
 extern "C" void cfie_os_irq_handler(NtrCpu* c) { ntr::nitro::irq_handler(c, A->os_irq_table, A->os_irq_handler_thread_switch); }
@@ -549,9 +547,8 @@ extern "C" void cfie_npc_input(NtrCpu* c) {
             const int32_t animation_slot = int8_t(ntr_rd8(c, character + 172));
             if (animation_slot >= 0 && animation_slot <= 3 &&
                 pickup_animation_character[animation_slot] == character) {
-                if (!cfie::fast_pickup_animation || ntr_rd8(c, A->network + 2) != 0) {
+                if (cfie::pickup_animation_speed <= 1 || ntr_rd8(c, A->network + 2) != 0) {
                     pickup_animation_character[animation_slot] = 0;
-                    pickup_animation_remainder[animation_slot] = 0;
                 }
             }
             if (animation_slot >= 0 && animation_slot <= 3 &&
@@ -559,8 +556,9 @@ extern "C" void cfie_npc_input(NtrCpu* c) {
                 const uint16_t position = ntr_rd16(c, character + 0x7e4);
                 if (position < pickup_animation_position[animation_slot])
                     pickup_animation_character[animation_slot] = 0;
-                else if (cfie::pickup_animation_extra_tick(pickup_animation_remainder[animation_slot]))
-                    ntr_wr16(c, character + 0x7e4, position + 1);
+                else
+                    ntr_wr16(c, character + 0x7e4,
+                             uint16_t(position + cfie::pickup_animation_speed - 1));
                 pickup_animation_position[animation_slot] = ntr_rd16(c, character + 0x7e4);
             }
         }

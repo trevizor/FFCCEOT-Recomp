@@ -72,5 +72,5 @@ main 0209926c instead cfie_interact_as_main
 # Combat cheats: scale the final damage event after the game's own calculations.
 main 02057ff0 before cfie_scale_damage
 
-# Cheats: advance the pickup animation's own timeline at 1.5x.
+# Cheats: advance the pickup animation's own timeline.
 main 02066a40 before cfie_pickup_animation_start

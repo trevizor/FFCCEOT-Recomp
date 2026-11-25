@@ -687,9 +687,9 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
         enum_row(leftPane, rightPane, "XP received", SETTING(xp_percent), multiplierValues, multiplierLabels,
                  "Multiplies experience gained by each party member, rounded to the nearest point. Affects offline "
                  "play only.");
-        bool_row(leftPane, rightPane, "Faster pickup animation", SETTING(fast_pickup_animation),
-                 "Speeds the ground-item pickup animation to 1.5x. The normal pickup state and reward code still run. "
-                 "Affects offline play only.");
+        number_row(leftPane, rightPane, "Pickup animation speed", SETTING(pickup_animation_speed),
+                   "Speeds the ground-item pickup animation while preserving its normal state and reward code. "
+                   "Affects offline play only.", 1, 10, 1, "x");
     });
 
     add_tab("Local co-op", [this](Rml::Element* content) {
