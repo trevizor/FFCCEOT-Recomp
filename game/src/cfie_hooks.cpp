@@ -544,22 +544,21 @@ extern "C" void cfie_npc_input(NtrCpu* c) {
             } else {
                 previous_xp[slot] = current;
             }
-            const int32_t animation_slot = int8_t(ntr_rd8(c, character + 172));
-            if (animation_slot >= 0 && animation_slot <= 3 &&
-                pickup_animation_character[animation_slot] == character) {
-                if (cfie::pickup_animation_speed <= 1 || ntr_rd8(c, A->network + 2) != 0) {
-                    pickup_animation_character[animation_slot] = 0;
-                }
-            }
-            if (animation_slot >= 0 && animation_slot <= 3 &&
-                pickup_animation_character[animation_slot] == character) {
+        }
+        const int32_t animation_slot = int8_t(ntr_rd8(c, character + 172));
+        if (animation_slot >= 0 && animation_slot <= 3 &&
+            pickup_animation_character[animation_slot] == character) {
+            if (cfie::pickup_animation_speed <= 1 || ntr_rd8(c, A->network + 2) != 0) {
+                pickup_animation_character[animation_slot] = 0;
+            } else {
                 const uint16_t position = ntr_rd16(c, character + 0x7e4);
-                if (position < pickup_animation_position[animation_slot])
+                if (position < pickup_animation_position[animation_slot]) {
                     pickup_animation_character[animation_slot] = 0;
-                else
+                } else {
                     ntr_wr16(c, character + 0x7e4,
                              uint16_t(position + cfie::pickup_animation_speed - 1));
-                pickup_animation_position[animation_slot] = ntr_rd16(c, character + 0x7e4);
+                    pickup_animation_position[animation_slot] = ntr_rd16(c, character + 0x7e4);
+                }
             }
         }
         xp_initialized = true;
