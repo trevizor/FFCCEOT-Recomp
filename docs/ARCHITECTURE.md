@@ -82,6 +82,21 @@ The game-specific glue (`game/src/cfie_hooks.cpp`) keeps a table of the addresse
 (`cfie::select_release`, called when the game is loaded); each release keeps its own save (`cfie.sav`, `cfip.sav`,
 unless `--save-file` is given). The game's language is the firmware's: Settings, Game sets it (`RuntimeOptions::language`).
 
+**Parallel-instance roster.** Each local instance starts from the first player's story save. The first player's original
+save is never used as four independently authoritative copies: `save_roster.cpp` takes the 16 active 140-byte
+character records out of the checksummed `XNYL` save blocks and keeps them beside the save as
+`cfie-characters/slot-NNNN.ffcc-character`. Slots 1-16 are loaded into the game; higher slot files remain in the archive
+until the user replaces or deletes an active slot. On first use the archive is populated from the save; afterward the
+files are authoritative, including missing files as intentionally empty slots. Secondary saves rotate the populated
+active records, so player 2 starts on the next character, player 3 on the following one, and so on; empty roster holes and
+the character archive stay in place. A roster with one character cannot be offset.
+
+At shutdown the first instance asks the secondary processes to exit and waits for their final saves. It keeps the
+first player's story/inventory state, selects the highest-XP version of each character, exports newly created characters
+to the first free character slot, and applies each instance's signed gil delta to the first player's starting wallet.
+The resulting roster and gil value are written into the first 32 KiB save bank, its block checksums are recalculated,
+and the bank is copied to the redundant second bank. Read-only test runs do not create, merge, or write roster files.
+
 ## 3. Recompiler (`ntr-recomp`)
 
 **Input**: decompressed ARM9 static binary, autoload segments (at their *destination* addresses),

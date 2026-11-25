@@ -59,6 +59,10 @@ add_executable(test_view_share test_view_share.cpp ${PROJECT_SOURCE_DIR}/game/sr
 target_include_directories(test_view_share PRIVATE ${PROJECT_SOURCE_DIR}/game/src)
 add_test(NAME view_share COMMAND test_view_share)
 
+add_executable(test_save_roster test_save_roster.cpp ${PROJECT_SOURCE_DIR}/game/src/save_roster.cpp)
+target_include_directories(test_save_roster PRIVATE ${PROJECT_SOURCE_DIR}/game/src)
+add_test(NAME save_roster COMMAND test_save_roster)
+
 # The update check's release list, version comparison and notes (no network needed).
 add_executable(test_release_info test_release_info.cpp ${PROJECT_SOURCE_DIR}/game/src/release_info.cpp)
 target_include_directories(test_release_info PRIVATE ${PROJECT_SOURCE_DIR}/game/src)

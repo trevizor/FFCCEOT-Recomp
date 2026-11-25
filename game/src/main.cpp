@@ -32,6 +32,7 @@
 #include "crash_report.hpp"
 #include "game_module.hpp"
 #include "report.hpp"
+#include "save_roster.hpp"
 #include "input.hpp"
 #include "input_latch.hpp"
 #include "input_script.hpp"
@@ -67,9 +68,22 @@ constexpr int kScreenW = 256, kScreenH = 192;
 constexpr double kFrameSeconds = 560190.0 / 33513982.0;  // one DS frame (59.8261 Hz)
 constexpr char kTitle[] = "Final Fantasy Crystal Chronicles: Echoes of Time";
 
+std::filesystem::path player_save(std::filesystem::path path, int player);
+std::filesystem::path base_player_save(std::filesystem::path path);
+std::filesystem::path parallel_session_directory(const std::filesystem::path& save_path, uint32_t process_id);
+
 std::vector<uint8_t> read_file(const std::filesystem::path& p) {
     std::ifstream f(p, std::ios::binary);
     return std::vector<uint8_t>(std::istreambuf_iterator<char>(f), {});
+}
+
+bool write_file(const std::filesystem::path& path, const std::vector<uint8_t>& data) {
+    std::error_code ec;
+    if (path.has_parent_path()) std::filesystem::create_directories(path.parent_path(), ec);
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file) return false;
+    file.write(reinterpret_cast<const char*>(data.data()), std::streamsize(data.size()));
+    return bool(file);
 }
 
 using ScriptStep = input_script::Step;
@@ -193,6 +207,93 @@ public:
     // Game thread. The save the game writes (the release being played decides it, which is known once the game is loaded).
     void use_save_path(const std::filesystem::path& save_path) { save_path_ = save_path; }
 
+    bool prepare_parallel_save(std::vector<uint8_t>& save, const std::filesystem::path& save_path,
+                               std::string& error) {
+        if (read_only_save || player != 1 || players == 1) return true;
+        character_dir_ = save_roster::character_directory(save_path);
+        std::vector<uint8_t> prepared;
+        if (!save_roster::prepare(save, prepared, character_dir_, error)) return false;
+        save = std::move(prepared);
+        parallel_baseline_ = save;
+        parallel_active_ = true;
+        parallel_save_path_ = save_path;
+        parallel_session_dir_ = parallel_session_directory(save_path, view_share::current_pid());
+        std::error_code ec;
+        std::filesystem::create_directories(parallel_session_dir_, ec);
+        if (ec) {
+            error = "cannot create " + parallel_session_dir_.string() + ": " + ec.message();
+            return false;
+        }
+        for (int slot = 2; slot <= players; slot++) {
+            if (save.empty()) {
+                std::filesystem::remove(player_save(save_path, slot));
+            } else {
+                auto rotated = save;
+                save_roster::rotate_active_characters(rotated, size_t(slot - 1));
+                if (!write_file(player_save(save_path, slot), rotated)) {
+                    error = "cannot prepare player " + std::to_string(slot) + "'s save";
+                    return false;
+                }
+            }
+        }
+        save_ = save;
+        return true;
+    }
+
+    void configure_parallel_save(const std::filesystem::path& save_path) {
+        if (player == 1 || !parent_pid) return;
+        parallel_session_dir_ = parallel_session_directory(base_player_save(save_path), parent_pid);
+        if (!std::filesystem::exists(parallel_session_dir_)) {
+            parallel_session_dir_.clear();
+            return;
+        }
+        std::ofstream marker(parallel_session_dir_ / ("started-" + std::to_string(player)),
+                             std::ios::binary | std::ios::trunc);
+    }
+
+    void finish_parallel_save() {
+        if (parallel_session_dir_.empty() || player != 1 || !parallel_active_) return;
+        flush_save();
+        std::ofstream(parallel_session_dir_ / "closing", std::ios::binary | std::ios::trunc);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+        for (;;) {
+            bool done = true;
+            for (int slot = 2; slot <= players; slot++)
+                if (std::filesystem::exists(parallel_session_dir_ / ("started-" + std::to_string(slot))))
+                    done &= std::filesystem::exists(parallel_session_dir_ / ("done-" + std::to_string(slot)));
+            if (done || std::chrono::steady_clock::now() >= deadline) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        std::vector<std::vector<uint8_t>> saves;
+        saves.push_back(save_.empty() ? parallel_baseline_ : save_);
+        for (int slot = 2; slot <= players; slot++) {
+            const auto path = player_save(parallel_save_path_, slot);
+            auto child = read_file(path);
+            if (child.empty()) {
+                if (std::filesystem::exists(parallel_session_dir_ / ("started-" + std::to_string(slot))))
+                    std::fprintf(stderr,
+                                 "parallel save: player %d did not produce a save; it will not be merged\n", slot);
+                child = parallel_baseline_;
+            }
+            saves.push_back(std::move(child));
+        }
+        std::vector<uint8_t> merged;
+        std::string error;
+        if (!save_roster::merge(parallel_baseline_, saves, character_dir_, merged, error)) {
+            std::fprintf(stderr, "parallel save merge failed: %s\n", error.c_str());
+        } else {
+            save_ = std::move(merged);
+            save_dirty_ = true;
+            flush_save();
+        }
+        for (int slot = 2; slot <= players; slot++) {
+            std::filesystem::remove(parallel_session_dir_ / ("started-" + std::to_string(slot)));
+            std::filesystem::remove(parallel_session_dir_ / ("done-" + std::to_string(slot)));
+        }
+        std::filesystem::remove(parallel_session_dir_ / "closing");
+        std::filesystem::remove(parallel_session_dir_);
+    }
+
     // Game thread.
     bool init_graphics(const std::filesystem::path& save_path) {
         use_save_path(save_path);
@@ -230,6 +331,10 @@ public:
     // Game thread, once the runtime is gone.
     void shutdown_graphics() {
         flush_save();
+        if (player > 1 && !parallel_session_dir_.empty()) {
+            std::ofstream marker(parallel_session_dir_ / ("done-" + std::to_string(player)),
+                                 std::ios::binary | std::ios::trunc);
+        }
         if (settings_dirty_ && !settings_path.empty()) save_settings(settings_path, settings);
         if (ui_ready_) {
             ui::shutdown();
@@ -310,6 +415,8 @@ public:
         if (title_dirty_) update_title();  // a change made last frame is now in effect
         if (exporting_ && !follow_first_player()) return false;
         if (!exporting_ && parent_pid && (frames_ & 31) == 0 && !view_share::process_alive(parent_pid)) return false;
+        if (player > 1 && !parallel_session_dir_.empty() &&
+            (frames_ & 31) == 0 && std::filesystem::exists(parallel_session_dir_ / "closing")) return false;
         if (runtime_->video().wide_extra != presenter_.wide_extra()) update_layout();  // (the layout follows what is in use)
         ++frames_;
         if (exit_after_frames && frames_ >= exit_after_frames) return false;
@@ -1796,6 +1903,9 @@ private:
     double next_present_ = 0;      // variable refresh: when the next frame is to be presented (seconds)
     std::filesystem::path save_path_;
     std::vector<uint8_t> save_;
+    std::filesystem::path character_dir_, parallel_save_path_, parallel_session_dir_;
+    std::vector<uint8_t> parallel_baseline_;
+    bool parallel_active_ = false;
     bool save_dirty_ = false;
     int frames_since_save_ = 0;
     std::atomic<uint64_t> frames_{0};  // (the main thread reads it for --perf)
@@ -1890,6 +2000,21 @@ std::filesystem::path player_save(std::filesystem::path path, int player) {
     return path;
 }
 
+std::filesystem::path base_player_save(std::filesystem::path path) {
+    auto stem = path.stem().string();
+    const size_t dot = stem.rfind(".p");
+    if (dot != std::string::npos && dot + 2 < stem.size() &&
+        stem.back() >= '2' && stem.back() <= '4' &&
+        std::all_of(stem.begin() + dot + 2, stem.end(), [](char c) { return std::isdigit(unsigned(c)); }))
+        path.replace_filename(stem.substr(0, dot) + path.extension().string());
+    return path;
+}
+
+std::filesystem::path parallel_session_directory(const std::filesystem::path& save_path, uint32_t process_id) {
+    return save_path.parent_path() /
+           ("." + save_path.stem().string() + ".parallel-" + std::to_string(process_id));
+}
+
 // Reads the ROM and loads the recompiled game for it. False, with `error` set, if either cannot be used.
 // Each release keeps its own save (cfie.sav, cfip.sav), so playing one never replaces the other's: `save_path` is changed
 // to the release's (and the player's), unless it was chosen with --save-file (`per_release_save` is false).
@@ -1914,8 +2039,8 @@ bool load_game(const std::filesystem::path& rom_path, const std::filesystem::pat
         std::string stem = known->game_code;
         for (char& c : stem) c = char(std::tolower(static_cast<unsigned char>(c)));
         save_path.replace_filename(stem + ".sav");
-        save_path = player_save(save_path, player);
     }
+    if (player > 1) save_path = player_save(save_path, player);
     if (!save_path.empty() && std::filesystem::exists(save_path)) options.save_data = read_file(save_path);
     const auto wifi_path = std::filesystem::path(save_path).replace_extension(".wfc");
     if (!save_path.empty() && std::filesystem::exists(wifi_path)) options.wifi_settings = read_file(wifi_path);
@@ -2586,6 +2711,18 @@ int main(int argc, char** argv) {
                 g.startup_rom.clear();
             }
             if (g.loaded && !quit) {
+                std::string save_error;
+                if (g.player == 1) {
+                    if (!host.prepare_parallel_save(g.options.save_data, g.save_path, save_error)) {
+                        std::fprintf(stderr, "parallel save setup failed: %s\n", save_error.c_str());
+                        host.show_error("The character saves could not be prepared", save_error);
+                        quit = true;
+                    }
+                } else {
+                    host.configure_parallel_save(g.save_path);
+                }
+            }
+            if (g.loaded && !quit) {
                 g.options.video = host.wanted_video();  // the GL context is current: melonDS's GL renderers can start
                 g.options.fast_cart = host.settings.fast_loading;
                 g.options.cpu_speed = host.settings.cpu_speed;
@@ -2615,6 +2752,7 @@ int main(int argc, char** argv) {
                 g.rc = runtime->run();
                 host.detach();
                 runtime.reset();  // writes the exit reports (interpreter coverage, function profile); frees the GL renderer
+                host.finish_parallel_save();
             }
             host.shutdown_graphics();
         }
