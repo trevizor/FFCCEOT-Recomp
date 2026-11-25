@@ -88,6 +88,13 @@ void test_defaults_survive() {
     std::filesystem::remove(path);
 }
 
+void test_bottom_screen_focus() {
+    CHECK(!video::show_other_screen(false, false));
+    CHECK(video::show_other_screen(false, true));
+    CHECK(video::show_other_screen(true, true));
+    CHECK(video::show_other_screen(true, false));  // losing menu focus restores the original shown state
+}
+
 void test_alpha_defaults() {
     Settings s;
     CHECK(resolved_console_name(s) == "FFCC");  // (never the PC's name: other players see it)
@@ -304,6 +311,7 @@ void test_assign_pad_swaps() {
 int main() {
     test_round_trip();
     test_defaults_survive();
+    test_bottom_screen_focus();
     test_set_setting();
     test_camera_coordinates();
     test_camera_hook();

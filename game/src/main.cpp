@@ -999,6 +999,7 @@ private:
 
     bool combined_ = false, exporting_ = false;  // one window for all players: this is the first, or one of the others
     bool pip_ = false;                           // the bottom screen shown (with combined_ or exporting_)
+    bool menu_screen_focus_ = false;             // game input is navigating a menu rather than the field
     std::uint32_t cell_w_ = 0, cell_h_ = 0;      // the picture size the first player asked for (exporting_)
     view_share::Writer writer_;
     view_share::Reader readers_[view_share::kChildren];
@@ -1044,7 +1045,9 @@ private:
         if (combined_ || exporting_) {
             // The players' pictures share the window in cells, each with the main screen and the bottom one as a corner picture.
             ls.layout = video::Layout::Single;
-            ls.second_screen = pip_;
+            ls.second_screen = video::show_other_screen(pip_, menu_screen_focus_);
+        } else {
+            ls.second_screen = video::show_other_screen(ls.second_screen, menu_screen_focus_);
         }
         if (exporting_) {
             const view_share::Block* b = view_map.block();
@@ -1210,6 +1213,11 @@ private:
         }
         const bool live = ring_ticks_ != 0 && f - ring_tick_frame_ <= 8;
         field_live_ = live;
+        const bool menu_focus = !live;
+        if (menu_screen_focus_ != menu_focus) {
+            menu_screen_focus_ = menu_focus;
+            update_layout();
+        }
         const bool allowed = live && !input_hold_ && !ui::any_document_visible() && (scripted || c.spell_ring);
         const ring::State before = ring_;
         ring_ = ring::pick(allowed ? rx : 0, allowed ? ry : 0, before, c.spell_ring_orientation);

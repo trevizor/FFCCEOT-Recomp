@@ -51,6 +51,9 @@ struct LayoutSettings {
     Align side_align = Align::Bottom;  // MainSide: the side screen's vertical position
 };
 
+// A game menu temporarily brings the other screen up without changing the player's preferred visibility.
+inline bool show_other_screen(bool preferred, bool menu_focus) { return preferred || menu_focus; }
+
 // One DS screen's place on the window.
 struct ScreenView {
     int screen = 0;  // 0 = top, 1 = bottom
