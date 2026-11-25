@@ -118,25 +118,27 @@ An action the AI already started finishes before the controller can begin anothe
 selected spell. While a member is controlled, each player's spell radial appears at half size in their screen quadrant.
 Controlled party members are not recorded in replays.
 
-Related options (all on by default except where noted):
+Related options (all on by default):
 
-- **Controllers take party members**: turns the Start/Back takeover on or off.
+- **Single camera Coop**: turns the Start/Back takeover on or off.
 - **Party members use map exits**: a controlled member can walk into map exits and entrances and take everyone there.
+- **Party members interact**: a controlled member can talk to townsfolk, open shops and use crystals, as if player 1 had
+  pressed the button.
 - **All controllers use menus**: any connected controller can advance dialogue, skip cutscenes and use menus. On the field
   extra controllers only move their own member.
 - **Dynamic camera**: with more than one player the camera zooms out (from your camera distance setting, never closer, up
   to 400%) and moves to keep every player in view. It centers on the players and favors player 1 near the edge of the view.
   With one player the camera distance setting is used.
-- **Party members interact (WIP, off by default)**: lets party members talk to townsfolk, shops and crystals. Not working
-  reliably yet.
 
 ### Option 2: one copy of the game per player
 
-Settings → Local co-op → **Local players** (1–4), or start with `--players <n>`, starts one copy of the game per player.
+Settings → Local co-op → **Parallel instances** (1–4), or start with `--players <n>`, starts one copy of the game per
+player. Closing the settings after changing it saves them and restarts the game with the new number of instances.
 Each is its own console with its own save (`cfie.sav`, `cfie.p2.sav`, …) and its own controller (player N uses the N-th
-connected gamepad). Players join each other through the game's own multiplayer menus.
+connected gamepad). Players join each other through the game's own multiplayer menus. Only player 1 plays music and
+cutscene sound; players 2 to 4 are muted for those (sound effects stay).
 
-By default (**One window for all players**, or `--one-window`) all players share one window: player 1's game is in the
+By default (**One window for all instances**, or `--one-window`) all players share one window: player 1's game is in the
 top left quarter, player 2's top right, 3 bottom left and 4 bottom right (side by side with two players). This also suits
 the Steam Deck and other single-screen setups. Players 2 to 4 have no window of their own; closing the window closes
 them all. In every player's quarter, **Select** (Back on a gamepad, Right Shift) shows or hides the bottom screen as a
@@ -154,7 +156,7 @@ to change, shoulders for tabs). The Settings window ends with an **About** tab: 
 
 This is an early build: please report problems from the in-game menu or on the issue tracker.
 
-- **Experimental features** carry a warning icon in the settings: camera distance, dynamic camera, party members using map exits, all controllers using menus, widescreen and HUD placement, 3D at 60 fps and at your
+- **Experimental features** carry a warning icon in the settings: widescreen and HUD placement, 3D at 60 fps and at your
   display's refresh rate, frame pacing, stable and smoothed textures, analog movement in multiplayer, and everything
   online. They work, but have had less testing.
 - Not done on Linux yet: the crash dialog (logs and problem reports work) and local wireless between instances.

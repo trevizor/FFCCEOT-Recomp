@@ -68,7 +68,7 @@ struct Settings {
     bool local_one_window = true;  // those players share one window, each in a quarter of it (not with extra windows)
     bool npc_control = true;   // Start on an extra controller takes the next party member (with one window, offline)
     bool npc_exits = true;  // party members a controller has taken can use map exits and entrances
-    bool npc_interact = false;  // WIP, does not work yet: party members a controller has taken can talk, shop and use crystals
+    bool npc_interact = true;   // party members a controller has taken can talk, shop and use crystals
     bool pads_use_menus = true;  // every connected controller can operate menus, dialogue and cutscenes
     bool dynamic_camera = true;  // with several players, the camera frames them all (from the camera distance to 4x)
     // Online

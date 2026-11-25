@@ -19,6 +19,7 @@ struct App {
 
     std::function<void()> settings_changed;
     std::function<void()> save_settings;  // write settings.ini now
+    std::function<void()> settings_closed;  // the settings window was closed
     std::function<void()> report_issue;   // "Report an issue": close the UI, then zip the report
     std::function<void()> quit;
 

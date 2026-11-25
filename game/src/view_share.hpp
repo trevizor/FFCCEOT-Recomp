@@ -1,4 +1,4 @@
-// One window for every local player (Settings -> Local co-op -> "One window for all players"). The players are still
+// One window for every local player (Settings -> Local co-op -> "One window for all instances"). The players are still
 // separate programs, each with its own console, but players 2 to 4 have no window: they draw their picture into shared
 // memory, and player 1's window shows all four in a grid. This is the shared memory, and where each picture goes.
 #pragma once

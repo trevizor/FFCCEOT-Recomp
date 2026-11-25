@@ -114,7 +114,7 @@ public:
         const video::Layout l = settings.layout.layout;
         const bool wide = l == video::Layout::Single || l == video::Layout::MainSide || l == video::Layout::Windows;
         const bool stacked = l == video::Layout::Stacked;
-        // One window for all players: the others have no window of their own (their picture goes to the first's).
+        // One window for all instances: the others have no window of their own (their picture goes to the first's).
         if (!view_share_name.empty() && player > 1 && view_map.open(view_share_name)) {
             exporting_ = true;
             writer_ = view_share::Writer(view_map.block(), player - 2);
@@ -642,6 +642,13 @@ private:
             if (!settings_path.empty()) save_settings(settings_path, settings);
             settings_dirty_ = false;
         };
+        a.settings_closed = [this] {
+            // The windows are started with the game, so a new number of players needs a new start.
+            if (player == 1 && !restart_requested && can_restart && !settings_path.empty() && settings.local_players != players) {
+                restart_requested = true;
+                quit_requested_ = true;
+            }
+        };
         a.report_issue = [this] { report_requested_ = true; };
         a.quit = [this] { quit_requested_ = true; };
         a.data_dir = data_dir;
@@ -804,13 +811,6 @@ private:
         cfie::npc_interact = settings.npc_interact;
         cfie::npc_control = settings.npc_control && players == 1;
         title_dirty_ = true;
-        // The windows are started with the game, so a new number of players needs a new start.
-        if (player == 1 && !restart_requested && settings.local_players != players && can_restart && !settings_path.empty()) {
-            save_settings(settings_path, settings);
-            settings_dirty_ = false;
-            restart_requested = true;
-            quit_requested_ = true;
-        }
     }
 
     void change_camera_distance(int steps) {

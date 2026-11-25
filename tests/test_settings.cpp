@@ -138,8 +138,8 @@ void test_set_setting() {
     CHECK(set_setting(s, "game.dynamic_camera", "false") && !s.dynamic_camera);
     CHECK(s.npc_exits);
     CHECK(set_setting(s, "game.npc_exits", "false") && !s.npc_exits);
-    CHECK(!s.npc_interact);  // WIP, off by default
-    CHECK(set_setting(s, "game.npc_interact", "true") && s.npc_interact);
+    CHECK(s.npc_interact);
+    CHECK(set_setting(s, "game.npc_interact", "false") && !s.npc_interact);
     CHECK(s.pads_use_menus);
     CHECK(set_setting(s, "game.pads_use_menus", "false") && !s.pads_use_menus);
     CHECK(!set_setting(s, "no.such_key", "1"));

@@ -75,9 +75,7 @@ std::string path_text(const fs::path& path) {
 bool is_experimental(const Rml::String& key) {
     static const char* const kRows[] = {"Aspect ratio", "HUD position", "HUD size", "3D frame rate", "Frame pacing",
                                         "Frame rate limit", "Stable textures", "Texture smoothing", "Analog movement",
-                                        "Console name", "Wi-Fi Connection server", "DNS server address", "Input buffer",
-                                        "Camera distance", "Dynamic camera", "Party members use map exits", "One window for all players",
-                                         "Party members interact", "All controllers use menus"};
+                                        "Console name", "Wi-Fi Connection server", "DNS server address", "Input buffer"};
     return std::find(std::begin(kRows), std::end(kRows), key) != std::end(kRows);
 }
 
@@ -654,30 +652,32 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
 
         leftPane.add_section("Players");
 #ifdef _WIN32
-        number_row(leftPane, rightPane, "Local players", SETTING(local_players),
-            "How many windows of the game to open on this PC, up to four. Each is a console of its own with its own "
+        number_row(leftPane, rightPane, "Parallel instances", SETTING(local_players),
+            "How many instances of the game to run on this PC, up to four. Each is a console of its own with its own "
             "save (cfie.sav, cfie.p2.sav, ...) and its own controller (the first controller is player 1's, the second "
             "player 2's, and so on), and they play together over local wireless: host or join a game from the "
-            "game's own menus as on a DS. Takes effect the next time the game starts.", 1, 4, 1, "");
-        bool_row(leftPane, rightPane, "One window for all players", SETTING(local_one_window),
-            "The players share one window, each in a quarter of it (side by side with two players), instead of a "
-            "window each. Good for the Steam Deck and a single screen. Select shows or hides the bottom screen. "
-            "Takes effect the next time the game starts.");
+            "game's own menus as on a DS. Only player 1 has music and cutscene sound. Closing the settings after "
+            "changing this saves them and restarts the game with the new number of instances.", 1, 4, 1, "");
+        bool_row(leftPane, rightPane, "One window for all instances", SETTING(local_one_window),
+            "With more than one instance, they share one window, each in a quarter of it (side by side with two "
+            "instances), instead of a window each. Good for the Steam Deck and a single screen. Select shows or "
+            "hides the bottom screen of every quarter. Takes effect the next time the game starts.");
 #endif
-        bool_row(leftPane, rightPane, "Controllers take party members", SETTING(npc_control),
-            "With one window, pressing Start on a second, third or fourth controller takes control of the next "
-            "free party member (the computer-controlled characters that follow you), who then moves with that "
-            "controller's left stick. Holding Back (or Select) gives the character back. Not used in online or wireless games.");
+        bool_row(leftPane, rightPane, "Single camera Coop", SETTING(npc_control),
+            "With a single instance, pressing Start on a second, third or fourth controller takes control of the "
+            "next free party member (the computer-controlled characters that follow you), who then moves with that "
+            "controller's left stick and fights beside you. Holding Back (or Select) for about a second gives the "
+            "character back. Not used with parallel instances, or in online or wireless games.");
         bool_row(leftPane, rightPane, "Party members use map exits", SETTING(npc_exits),
             "A party member a controller has taken can walk into map exits and entrances (area borders, doors) and "
             "take everyone there, as player 1 can. When off, only player 1 can.");
-        bool_row(leftPane, rightPane, "Party members interact (WIP)", SETTING(npc_interact),
-            "Work in progress, does not work yet: the conversation starts but its text window closes at once. A party member a controller has taken can talk to characters, open shops and use crystals when standing "
-            "next to them, as player 1 can. When off, only player 1 can.");
+        bool_row(leftPane, rightPane, "Party members interact", SETTING(npc_interact),
+            "A party member a controller has taken can talk to characters, open shops and use crystals when standing "
+            "next to them, as if player 1 had pressed the button. When off, only player 1 can.");
         bool_row(leftPane, rightPane, "All controllers use menus", SETTING(pads_use_menus),
-            "With one window, every connected controller can advance dialogue, skip cutscenes and use the game's "
-            "menus, not only the first one. While the game is being played, extra controllers only move their own "
-            "party member.");
+            "With a single instance, every connected controller can advance dialogue, skip cutscenes and use the "
+            "game's menus, not only the first one. While the game is being played, extra controllers only move their "
+            "own party member.");
 
         leftPane.add_section("Camera");
         bool_row(leftPane, rightPane, "Dynamic camera", SETTING(dynamic_camera),
@@ -689,7 +689,7 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
         number_row(leftPane, rightPane, "Camera distance", SETTING(camera_distance),
             "The field camera's distance as a percentage of the game's own distance. Mouse wheel or the stick clicks "
             "change it by 25%. At large distances the edges of a level or missing objects may become visible. "
-            "Other camera setups keep their original distance; multiplayer and cutscenes are less tested.", cfie::kCameraDistanceMin,
+            "Other camera setups keep their original distance.", cfie::kCameraDistanceMin,
             cfie::kCameraDistanceMax, cfie::kCameraDistanceStep);
         bool_row(leftPane, rightPane, "Mouse wheel changes camera", [](auto& s) -> auto& { return s.controls.camera_wheel; },
             "Scroll up to move the field camera closer, or down to move it farther away. The wheel scrolls the "
@@ -863,6 +863,9 @@ void SettingsWindow::update() {
 void SettingsWindow::hide(bool close) {
     if (app().save_settings) {
         app().save_settings();
+    }
+    if (app().settings_closed) {
+        app().settings_closed();
     }
     Window::hide(close);
 }
