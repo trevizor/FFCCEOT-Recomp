@@ -126,6 +126,8 @@ struct SpellRingView {
     float x = 0, y = 0, size = 0;
     int indicator = -1;
     float indicator_x = 0, indicator_y = 0, indicator_size = 0;
+    int hp_element = -1;
+    float hp_x = 0, hp_y = 0, hp_size = 0;
 };
 void set_spell_ring(int player, const SpellRingView& view) noexcept;
 const SpellRingView& get_spell_ring(int player) noexcept;

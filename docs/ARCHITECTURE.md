@@ -533,6 +533,9 @@ not a big rounded box (RmlUi drew seams across that).
   4 bottom-right). A changed element is shown for one real second at the top of its quadrant; this is a fallback
   rather than a world-space character marker. Right stick and R + left/right both select; the latter does not move the
   companion. Without a controlled companion, the original single-player radial layout is unchanged.
+- The main player's selected element and each controlled companion's element also stay visible beside their HP bars while
+  the field HUD is live. AI companions do not have a persistent selected element. The icons follow HUD size and widescreen
+  positioning, and are hidden if another screen covers them.
 - The normal X handler only starts a cast for the main character. Controlled NPCs use the per-character state entry
   `0x02058C94`, also used by companion AI, after checking the field, character and selected spell through the same
   game functions as the main player. The game owns the charge, release, effects and resource consumption. Selection

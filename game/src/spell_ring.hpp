@@ -28,6 +28,13 @@ struct Layout {
 Layout layout(float x, float y, float width, float height, int size_percent, int x_percent, int y_percent,
               int player, bool multiplayer);
 
+struct HudIcon {
+    float x = 0, y = 0, size = 0;
+};
+
+// Position beside the corresponding party HP bar, including the game's widescreen and HUD transforms.
+HudIcon hud_icon(float x, float y, float width, float height, int wide_extra, bool edges, int hud_scale, int slot);
+
 // The radial's state for the right stick (x to the right, y down, each -1 to 1) and its state a moment ago. It opens when the
 // stick is pushed past `open_at` and closes below `close_at` (so a stick wobbling at the edge does not flicker); the sector
 // changes only once the stick is `margin` degrees into the next one (so it does not chatter on a boundary).

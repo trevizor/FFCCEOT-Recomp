@@ -48,6 +48,21 @@ Layout layout(float x, float y, float width, float height, int size_percent, int
     return result;
 }
 
+HudIcon hud_icon(float x, float y, float width, float height, int wide_extra, bool edges, int hud_scale, int slot) {
+    const float pixel = width / (256.0f + 2.0f * wide_extra);
+    const float scale = hud_scale / 100.0f;
+    const bool right = slot == 1 || slot == 3;
+    const bool top = slot >= 2;
+    const float anchor_x = right ? 256.0f : 0.0f;
+    const float anchor_y = top ? 0.0f : 192.0f;
+    const float ds_x[] = {135.0f, 190.0f, 66.0f, 190.0f};
+    const float ds_y[] = {170.0f, 183.0f, 10.0f, 10.0f};
+    const float shift = edges ? (right ? float(wide_extra) : -float(wide_extra)) : 0.0f;
+    return {x + (wide_extra + anchor_x + shift + (ds_x[slot] - anchor_x) * scale) * pixel,
+            y + (anchor_y + (ds_y[slot] - anchor_y) * scale) * height / 192.0f,
+            11.0f * scale * height / 192.0f};
+}
+
 State pick(float x, float y, const State& previous, Orientation orientation, float open_at, float close_at, float margin) {
     const float length = std::hypot(x, y);
     State next;

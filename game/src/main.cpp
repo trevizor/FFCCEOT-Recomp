@@ -208,7 +208,7 @@ public:
         }
         if (combined_) presenter_.before_draw = [this] { pull_remotes(); };
         update_layout();
-        if (!exporting_) presenter_.overlay = [this] { draw_ui(); };
+        presenter_.overlay = [this] { draw_ui(); };
         init_ui();
 
         SDL_AudioSpec spec{SDL_AUDIO_S16, 2, 48000};
@@ -625,7 +625,12 @@ private:
     void draw_ui() {
         if (!ui_ready_) return;
         int w = 0, h = 0;
-        SDL_GetWindowSizeInPixels(window_, &w, &h);
+        if (exporting_) {
+            w = presenter_.width();
+            h = presenter_.height();
+        } else {
+            SDL_GetWindowSizeInPixels(window_, &w, &h);
+        }
         ui::update();
         ui::host::render(w, h);
     }
@@ -1303,13 +1308,13 @@ private:
             npc.spell = spell_elements_[slot];
         }
         if (presenter_.view_count() > 0) {
-            int shown = 0;
+            int shown = -1;
             for (int i = 0; i < presenter_.view_count(); i++)
                 if (presenter_.view(i).screen == 0) shown = i;
-            const auto& r = presenter_.view(shown).rect;
             ui::SpellRingView views[4]{};
-            for (int slot = 0; slot < 4; slot++) {
+            for (int slot = 0; shown >= 0 && slot < 4; slot++) {
                 if (slot != 0 && (!cfie::npc_input[slot].active || !cfie::npc_offline)) continue;
+                const auto& r = presenter_.view(shown).rect;
                 int player = slot;
                 for (const ExtraPad& pad : extra_pads_)
                     if (pad.slot == slot && slot != 0) player = pad.player;
@@ -1322,6 +1327,26 @@ private:
                 view.indicator_size = layout.indicator_size;
                 if (multiplayer && spell_elements_[slot] >= 0 && now < spell_indicator_until_[slot])
                     view.indicator = spell_elements_[slot];
+                if (live && spell_elements_[slot] >= 0 &&
+                    (slot == 0 || cfie::npc_idle_ticks[slot] < kNpcPresentTicks)) {
+                    const auto video = runtime_->video();
+                    const bool transformed = video.renderer == ntr::Renderer::OpenGL;
+                    const auto icon = ring::hud_icon(r.x, r.y, r.w, r.h, presenter_.wide_extra(),
+                                                     transformed && video.hud_edges,
+                                                     transformed ? video.hud_scale : 100, slot);
+                    bool visible = icon.x - icon.size / 2 >= r.x && icon.x + icon.size / 2 <= r.x + r.w &&
+                                   icon.y - icon.size / 2 >= r.y && icon.y + icon.size / 2 <= r.y + r.h;
+                    for (int i = shown + 1; i < presenter_.view_count(); i++) {
+                        const auto& other = presenter_.view(i).rect;
+                        if (icon.x + icon.size / 2 > other.x && icon.x - icon.size / 2 < other.x + other.w &&
+                            icon.y + icon.size / 2 > other.y && icon.y - icon.size / 2 < other.y + other.h)
+                            visible = false;
+                    }
+                    if (visible) {
+                        view.hp_element = spell_elements_[slot];
+                        view.hp_x = icon.x; view.hp_y = icon.y; view.hp_size = icon.size;
+                    }
+                }
                 views[player] = view;
             }
             for (int player = 0; player < 4; player++) ui::set_spell_ring(player, views[player]);

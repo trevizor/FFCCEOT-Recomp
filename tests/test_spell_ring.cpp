@@ -31,6 +31,20 @@ int main() {
         CHECK(quad.y == 200 + 300 * (player / 2));
         CHECK(quad.indicator_x == quad.x && quad.indicator_y < quad.y);
     }
+    {
+        const auto p1 = ring::hud_icon(100, 50, 960, 720, 0, false, 100, 0);
+        const auto p2 = ring::hud_icon(100, 50, 960, 720, 0, false, 100, 1);
+        const auto p3 = ring::hud_icon(100, 50, 960, 720, 0, false, 100, 2);
+        const auto p4 = ring::hud_icon(100, 50, 960, 720, 0, false, 100, 3);
+        CHECK(p1.x == 606.25f && p1.y == 687.5f && p1.size == 41.25f);
+        CHECK(p2.x > p1.x && p2.y > p1.y);
+        CHECK(p3.x < p4.x && p3.y == p4.y && p3.y < p1.y);
+        const auto wide = ring::hud_icon(0, 0, 1368, 768, 43, false, 100, 3);
+        const auto edge = ring::hud_icon(0, 0, 1368, 768, 43, true, 100, 3);
+        CHECK(edge.x - wide.x == 172);
+        const auto small = ring::hud_icon(0, 0, 1024, 768, 0, false, 50, 1);
+        CHECK(small.x == (256 - 33) * 4 && small.y == (192 - 4.5f) * 4 && small.size == 22);
+    }
     // Centres of the six sectors.
     for (int s = 0; s < ring::kSectors; s++) {
         const ring::State st = at(ring::sector_angle(s), 1.0f);

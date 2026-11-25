@@ -132,6 +132,19 @@ void Overlay::update_spell_ring(int player) {
     auto& slots = mSpellRingSlots[player];
     auto*& indicator = mSpellIndicator[player];
     const auto px = [](float v) { return std::to_string(std::lround(v)) + "px"; };
+    auto*& hp_indicator = mHpSpellIndicator[player];
+    if (view.hp_element >= 0 && !hp_indicator) {
+        hp_indicator = append(mDocument, "div");
+        hp_indicator->SetClass("ring-orb", true);
+    }
+    if (hp_indicator) {
+        for (int e = 0; e < 6; e++) hp_indicator->SetClass("element" + std::to_string(e), e == view.hp_element);
+        hp_indicator->SetProperty("display", view.hp_element >= 0 ? "block" : "none");
+        hp_indicator->SetProperty("left", px(view.hp_x - view.hp_size / 2));
+        hp_indicator->SetProperty("top", px(view.hp_y - view.hp_size / 2));
+        hp_indicator->SetProperty("width", px(view.hp_size));
+        hp_indicator->SetProperty("height", px(view.hp_size));
+    }
     if (view.indicator >= 0 && !indicator) {
         indicator = append(mDocument, "div");
         indicator->SetClass("ring-orb", true);

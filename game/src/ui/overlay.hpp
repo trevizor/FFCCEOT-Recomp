@@ -24,6 +24,7 @@ private:
     Rml::Element* mSpellRing[4] = {};
     Rml::Element* mSpellRingSlots[4][6] = {};
     Rml::Element* mSpellIndicator[4] = {};
+    Rml::Element* mHpSpellIndicator[4] = {};
     Rml::Element* mCurrentToast = nullptr;
     Rml::Element* mMenuNotification = nullptr;
     clock::time_point mCurrentToastStartTime;
