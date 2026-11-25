@@ -183,6 +183,13 @@ const Field kFields[] = {
           [](Settings& s, const std::string& v) {
               return parse_mana_rate(v, s.mana_recovery_hundredths_per_second);
           }},
+    Field{"game.auto_pickup", [](const Settings& s) { return std::to_string(int(s.auto_pickup)); },
+          [](Settings& s, const std::string& v) {
+              int n;
+              if (!parse_int(v, 0, 2, n)) return false;
+              s.auto_pickup = cfie::AutoPickup(n);
+              return true;
+          }},
     Field{"game.camera_distance", [](const Settings& s) { return std::to_string(s.camera_distance); },
           [](Settings& s, const std::string& v) {
               return parse_int(v, cfie::kCameraDistanceMin, cfie::kCameraDistanceMax, s.camera_distance);

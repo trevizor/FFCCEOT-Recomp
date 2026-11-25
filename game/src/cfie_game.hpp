@@ -36,6 +36,12 @@ extern bool npc_interact;  // WIP, does not work yet: controlled party members t
 extern bool mute_bgm;  // local players 2 and up: no background music (player 1's window plays it)
 extern bool pads_use_menus;  // any connected controller operates menus, dialogue and cutscenes
 extern bool dynamic_camera;  // with several players the camera frames them all, from the camera distance setting to 4x
+enum class AutoPickup { Off, Gold, GoldAndLoot };
+extern AutoPickup auto_pickup;
+inline bool auto_pickup_allows(AutoPickup mode, bool gold, bool loot) {
+    return mode == AutoPickup::GoldAndLoot ? gold || loot
+                                           : mode == AutoPickup::Gold && gold;
+}
 inline constexpr int kDynamicCameraMax = 400;
 extern int jump_landing_delay;  // 0, 50 or 100 percent of the original landing-to-jump delay (offline)
 extern int mana_recovery_hundredths_per_second;  // mana restored to every active party member (offline)

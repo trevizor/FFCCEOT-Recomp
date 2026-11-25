@@ -66,6 +66,7 @@ struct Settings {
     // Cheats
     int jump_landing_delay = 100;  // 0x, 0.5x or 1x the original delay before jumping after landing
     int mana_recovery_hundredths_per_second = 0;  // 0.25, 0.5, or 1-20 mana/s (offline)
+    cfie::AutoPickup auto_pickup = cfie::AutoPickup::Off;
     int camera_distance = cfie::kCameraDistanceDefault;  // percent of the game's field-camera distance
     int local_players = 1;     // 1-4 windows of the game on this PC, each its own console and save (Windows)
     bool local_one_window = true;  // those players share one window, each in a quarter of it (not with extra windows)

@@ -671,6 +671,12 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             "Mana restored to every active party member during field gameplay, up to their normal maximum. Fractional "
             "rates accumulate into whole mana points over time. The default of 0 disables recovery. This affects "
             "offline play only so every console remains in step.");
+        enum_row(
+            leftPane, rightPane, "Auto-pickup", SETTING(auto_pickup), {0, 1, 2},
+            {"Off", "Gold", "Gold and loot"},
+            "Automatically collect ground gold without stopping for the pickup animation. Gold and loot also "
+            "collect dropped items, but health and mana pickups are always left on the ground. This affects offline "
+            "play only.");
     });
 
     add_tab("Local co-op", [this](Rml::Element* content) {
