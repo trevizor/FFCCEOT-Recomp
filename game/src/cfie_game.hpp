@@ -37,6 +37,11 @@ extern bool mute_bgm;  // local players 2 and up: no background music (player 1'
 extern bool pads_use_menus;  // any connected controller operates menus, dialogue and cutscenes
 extern bool dynamic_camera;  // with several players the camera frames them all, from the camera distance setting to 4x
 inline constexpr int kDynamicCameraMax = 400;
+extern int jump_landing_delay;  // 0, 50 or 100 percent of the original landing-to-jump delay (offline)
+extern int mana_recovery_per_second;  // mana restored to every active party member each second (offline)
+inline uint16_t mana_after_recovery(uint16_t current, uint16_t maximum, int recovery) {
+    return uint16_t(std::min<int>(current + std::max(recovery, 0), maximum));
+}
 
 // Where the camera must be so every player is in view, no closer than `min_distance` (percent of the game's distance,
 // the camera distance setting). Positions are (x, y, z) in the game's world, y up; the camera looks from `eye` to

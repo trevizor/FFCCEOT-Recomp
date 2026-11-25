@@ -646,6 +646,26 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
         }
     });
 
+    add_tab("Cheats", [this](Rml::Element* content) {
+        auto& leftPane = add_child<Pane>(content, Pane::Type::Controlled);
+        auto& rightPane = add_child<Pane>(content, Pane::Type::Uncontrolled);
+
+        leftPane.add_section("Gameplay");
+        choice_row(
+            leftPane, rightPane, "Landing jump delay", {"0x", "0.5x", "1x (original)"},
+            [] { return cfg().jump_landing_delay == 0 ? 0 : cfg().jump_landing_delay == 50 ? 1 : 2; },
+            [](int i) { cfg().jump_landing_delay = i == 0 ? 0 : i == 1 ? 50 : 100; },
+            [] { return cfg().jump_landing_delay != defaults().jump_landing_delay; },
+            "How long a character remains in the landing recovery before another jump is available. 0x skips the "
+            "landing recovery, and 0.5x makes it ready halfway through the original chain. The original setting "
+            "preserves the game's timing. This affects offline play only; multiplayer characters must stay in step.");
+        number_row(
+            leftPane, rightPane, "Mana recovery per second", SETTING(mana_recovery_per_second),
+            "Mana restored to every active party member each second of field gameplay, up to their normal maximum. "
+            "The default of 0 disables recovery. This affects offline play only so every console remains in step.",
+            0, 20, 1, "/s");
+    });
+
     add_tab("Local co-op", [this](Rml::Element* content) {
         auto& leftPane = add_child<Pane>(content, Pane::Type::Controlled);
         auto& rightPane = add_child<Pane>(content, Pane::Type::Uncontrolled);

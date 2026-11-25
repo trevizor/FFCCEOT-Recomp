@@ -84,6 +84,8 @@ std::map<std::string, std::string> emulation_settings(const Settings& s) {
             {"skip_logos", s.skip_logos ? "1" : "0"},
             {"analog_movement", analog[std::clamp(int(s.controls.analog_movement), 0, 2)]},
             {"aspect", std::to_string(int(s.aspect))},
+            {"jump_landing_delay", std::to_string(s.jump_landing_delay)},
+            {"mana_recovery_per_second", std::to_string(s.mana_recovery_per_second)},
             {"camera_distance", std::to_string(s.camera_distance)},
             {"dynamic_camera", s.dynamic_camera ? "1" : "0"},
             {"npc_exits", s.npc_exits ? "1" : "0"},
@@ -804,6 +806,8 @@ private:
         if (audio_) SDL_SetAudioStreamGain(audio_, settings.volume / 100.0f);
         cfie::online_buffer = settings.online_buffer;
         cfie::fast_saving = settings.fast_saving;
+        cfie::jump_landing_delay = settings.jump_landing_delay;
+        cfie::mana_recovery_per_second = settings.mana_recovery_per_second;
         cfie::camera_distance = settings.camera_distance;
         cfie::dynamic_camera = settings.dynamic_camera;
         cfie::npc_exits = settings.npc_exits;
@@ -2556,6 +2560,8 @@ int main(int argc, char** argv) {
                 g.options.language = firmware_language(host.settings.language);
                 cfie::online_buffer = host.settings.online_buffer;
                 cfie::fast_saving = host.settings.fast_saving;
+                cfie::jump_landing_delay = host.settings.jump_landing_delay;
+                cfie::mana_recovery_per_second = host.settings.mana_recovery_per_second;
                 cfie::camera_distance = host.settings.camera_distance;
                 cfie::dynamic_camera = host.settings.dynamic_camera;
                 cfie::npc_exits = host.settings.npc_exits;

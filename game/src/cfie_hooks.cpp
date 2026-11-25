@@ -18,6 +18,8 @@ bool fast_saving = true;
 AnalogMovement analog_movement = AnalogMovement::SinglePlayer;
 uint16_t aspect = 0x1555;
 int camera_distance = kCameraDistanceDefault;
+int jump_landing_delay = 100;
+int mana_recovery_per_second = 0;
 bool dynamic_camera = true;
 bool npc_exits = true;
 bool mute_bgm = false;
@@ -496,6 +498,24 @@ extern "C" int cfie_interact_character(NtrCpu* c) {
 // (it runs, turns, animates and collides as the player does). Only offline: in a session every console must agree.
 extern "C" void cfie_npc_input(NtrCpu* c) {
     const uint32_t character = ntr_rd32(c, c->r[0] + 20);
+    static int mana_ticks = 0;
+    if (character == ntr_rd32(c, A->players + 328)) {
+        if (cfie::mana_recovery_per_second <= 0 || ntr_rd8(c, A->network + 2) != 0) {
+            mana_ticks = 0;
+        } else if (++mana_ticks >= 30) {
+            mana_ticks = 0;
+            for (uint32_t slot = 0; slot < 4; slot++) {
+                const uint32_t player = A->players + 572 * slot;
+                if (!ntr_rd32(c, player + 328)) continue;
+                constexpr uint32_t kMana = 0x1DE, kMaxMana = 0x1E0;
+                const uint16_t current = ntr_rd16(c, player + kMana);
+                const uint16_t maximum = ntr_rd16(c, player + kMaxMana);
+                if (current < maximum)
+                    ntr_wr16(c, player + kMana,
+                             cfie::mana_after_recovery(current, maximum, cfie::mana_recovery_per_second));
+            }
+        }
+    }
     const int32_t slot = int8_t(ntr_rd8(c, character + 172));
     if (slot < 1 || slot > 3 || ntr_rd32(c, A->players + 572 * uint32_t(slot) + 328) != character) return;
     cfie::npc_idle_ticks[slot] = 0;
@@ -563,6 +583,27 @@ extern "C" void cfie_npc_input(NtrCpu* c) {
     // All controlled party members share the main player's view, not their AI camera.
     write_stick_vector(c, r1 + 4, 0, angle, speed);
     c->r[0] = r0, c->r[1] = r1, c->r[2] = r2, c->r[3] = r3, c->r[14] = lr;
+}
+
+// The landing finishes through falling (13) -> landing (16) -> idle (2). 0x skips 16; 0.5x keeps it but makes the
+// character grounded as 16 exits, one transition before the original path updates the ground flag.
+extern "C" void cfie_jump_landing_delay(NtrCpu* c) {
+    constexpr uint8_t kFallingState = 13, kLandingState = 16, kIdleState = 2;
+    if (cfie::jump_landing_delay == 100 || ntr_rd8(c, A->network + 2) != 0) return;
+    const uint32_t character = ntr_rd32(c, c->r[0] + 20);
+    bool player = false;
+    for (uint32_t slot = 0; slot < 4 && !player; slot++)
+        player = character == ntr_rd32(c, A->players + 572 * slot + 328);
+    if (!player) return;
+    const uint8_t state = ntr_rd8(c, c->r[0] + 8), next = uint8_t(c->r[1]);
+    if (state == kFallingState && next == kLandingState) {
+        if (cfie::jump_landing_delay == 0) {
+            c->r[1] = kIdleState;
+            ntr_wr32(c, character + 132, ntr_rd32(c, character + 132) | 2);
+        }
+    } else if (state == kLandingState && next == kIdleState && cfie::jump_landing_delay == 50) {
+        ntr_wr32(c, character + 132, ntr_rd32(c, character + 132) | 2);
+    }
 }
 
 // 0x0206F1BC: how far a player character's animation (r0, +8 +20: the character) goes in a tick (4.12). The run has
@@ -759,6 +800,7 @@ void* cfie::find_hook(const char* name) {
         {"cfie_npc_buttons", reinterpret_cast<void*>(&cfie_npc_buttons)},
         {"cfie_npc_ai", reinterpret_cast<void*>(&cfie_npc_ai)},
         {"cfie_npc_input", reinterpret_cast<void*>(&cfie_npc_input)},
+        {"cfie_jump_landing_delay", reinterpret_cast<void*>(&cfie_jump_landing_delay)},
         {"cfie_exit_check_player", reinterpret_cast<void*>(&cfie_exit_check_player)},
         {"cfie_interact_character", reinterpret_cast<void*>(&cfie_interact_character)},
         {"cfie_interact_as_main", reinterpret_cast<void*>(&cfie_interact_as_main)},

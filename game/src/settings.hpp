@@ -63,6 +63,9 @@ struct Settings {
     bool fast_loading = true;  // cartridge reads without the card's delays
     bool fast_saving = true;   // save reads and writes at once instead of at the DS's pace
     int cpu_speed = 4;         // ARM9 clock: 1, 2 or 4 times the DS's
+    // Cheats
+    int jump_landing_delay = 100;  // 0x, 0.5x or 1x the original delay before jumping after landing
+    int mana_recovery_per_second = 0;  // mana recovered by every active party member each second (0-20, offline)
     int camera_distance = cfie::kCameraDistanceDefault;  // percent of the game's field-camera distance
     int local_players = 1;     // 1-4 windows of the game on this PC, each its own console and save (Windows)
     bool local_one_window = true;  // those players share one window, each in a quarter of it (not with extra windows)

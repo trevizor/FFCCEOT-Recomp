@@ -141,6 +141,18 @@ const Field kFields[] = {
     BOOL_FIELD("game.wii_cutscenes", wii_cutscenes),
     BOOL_FIELD("game.fast_loading", fast_loading),
     BOOL_FIELD("game.fast_saving", fast_saving),
+    Field{"game.jump_landing_delay", [](const Settings& s) { return std::to_string(s.jump_landing_delay); },
+          [](Settings& s, const std::string& v) {
+              int n;
+              if (!parse_int(v, 0, 100, n) || (n != 0 && n != 50 && n != 100)) return false;
+              s.jump_landing_delay = n;
+              return true;
+          }},
+    Field{"game.mana_recovery_per_second",
+          [](const Settings& s) { return std::to_string(s.mana_recovery_per_second); },
+          [](Settings& s, const std::string& v) {
+              return parse_int(v, 0, 20, s.mana_recovery_per_second);
+          }},
     Field{"game.camera_distance", [](const Settings& s) { return std::to_string(s.camera_distance); },
           [](Settings& s, const std::string& v) {
               return parse_int(v, cfie::kCameraDistanceMin, cfie::kCameraDistanceMax, s.camera_distance);

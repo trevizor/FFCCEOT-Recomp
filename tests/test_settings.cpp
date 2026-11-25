@@ -36,6 +36,8 @@ void test_round_trip() {
     a.preset_chosen = true;
     a.volume = 40;
     a.hud_scale = 150;
+    a.jump_landing_delay = 50;
+    a.mana_recovery_per_second = 12;
     a.camera_distance = 275;
     a.controls.camera_wheel = false;
     a.language = GameLanguage::German;
@@ -57,6 +59,8 @@ void test_round_trip() {
     CHECK(b.preset_chosen);
     CHECK(b.volume == 40);
     CHECK(b.hud_scale == 150);
+    CHECK(b.jump_landing_delay == 50);
+    CHECK(b.mana_recovery_per_second == 12);
     CHECK(b.camera_distance == 275);
     CHECK(!b.controls.camera_wheel);
     CHECK(b.language == GameLanguage::German);
@@ -121,6 +125,17 @@ void test_set_setting() {
     CHECK(!set_setting(s, "graphics.texture_smoothing", "blurry"));
     CHECK(s.texture_smoothing == ntr::TextureSmoothing::Smooth);
     CHECK(s.camera_distance == 200);
+    CHECK(s.jump_landing_delay == 100);
+    CHECK(set_setting(s, "game.jump_landing_delay", "0") && s.jump_landing_delay == 0);
+    CHECK(set_setting(s, "game.jump_landing_delay", "50") && s.jump_landing_delay == 50);
+    CHECK(set_setting(s, "game.jump_landing_delay", "100") && s.jump_landing_delay == 100);
+    CHECK(!set_setting(s, "game.jump_landing_delay", "25") && s.jump_landing_delay == 100);
+    CHECK(set_setting(s, "game.mana_recovery_per_second", "20") && s.mana_recovery_per_second == 20);
+    CHECK(set_setting(s, "game.mana_recovery_per_second", "21") && s.mana_recovery_per_second == 20);
+    CHECK(set_setting(s, "game.mana_recovery_per_second", "-1") && s.mana_recovery_per_second == 0);
+    CHECK(!set_setting(s, "game.mana_recovery_per_second", "bad") && s.mana_recovery_per_second == 0);
+    CHECK(cfie::mana_after_recovery(90, 100, 20) == 100);
+    CHECK(cfie::mana_after_recovery(20, 100, 5) == 25);
     CHECK(set_setting(s, "game.camera_distance", "50") && s.camera_distance == 50);
     CHECK(set_setting(s, "game.camera_distance", "400") && s.camera_distance == 400);
     CHECK(set_setting(s, "game.camera_distance", "1000") && s.camera_distance == 400);
