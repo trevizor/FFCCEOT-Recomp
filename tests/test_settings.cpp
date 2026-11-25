@@ -38,6 +38,9 @@ void test_round_trip() {
     a.hud_scale = 150;
     a.jump_landing_delay = 50;
     a.mana_recovery_hundredths_per_second = 50;
+    a.damage_received_percent = 25;
+    a.damage_dealt_percent = 400;
+    a.xp_percent = 150;
     a.camera_distance = 275;
     a.controls.camera_wheel = false;
     a.language = GameLanguage::German;
@@ -61,6 +64,7 @@ void test_round_trip() {
     CHECK(b.hud_scale == 150);
     CHECK(b.jump_landing_delay == 50);
     CHECK(b.mana_recovery_hundredths_per_second == 50);
+    CHECK(b.damage_received_percent == 25 && b.damage_dealt_percent == 400 && b.xp_percent == 150);
     CHECK(b.camera_distance == 275);
     CHECK(!b.controls.camera_wheel);
     CHECK(b.language == GameLanguage::German);
@@ -162,6 +166,15 @@ void test_set_setting() {
     CHECK(cfie::mana_recovery_amount(25, remainder) == 0 && remainder == 75);
     CHECK(cfie::mana_recovery_amount(25, remainder) == 1 && remainder == 0);
     CHECK(cfie::mana_recovery_amount(500, remainder) == 5 && remainder == 0);
+    CHECK(cfie::scale_game_value(100, 25) == 25);
+    CHECK(cfie::scale_game_value(3, 25) == 1);
+    CHECK(cfie::scale_game_value(3, 400) == 12);
+    CHECK(set_setting(s, "game.damage_received_multiplier", "0.25") &&
+          s.damage_received_percent == 25);
+    CHECK(set_setting(s, "game.damage_dealt_multiplier", "4") &&
+          s.damage_dealt_percent == 400);
+    CHECK(set_setting(s, "game.xp_multiplier", "1.5") && s.xp_percent == 150);
+    CHECK(!set_setting(s, "game.xp_multiplier", "1.1") && s.xp_percent == 150);
     CHECK(set_setting(s, "game.camera_distance", "50") && s.camera_distance == 50);
     CHECK(set_setting(s, "game.camera_distance", "400") && s.camera_distance == 400);
     CHECK(set_setting(s, "game.camera_distance", "1000") && s.camera_distance == 400);

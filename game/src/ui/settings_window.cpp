@@ -671,6 +671,22 @@ SettingsWindow::SettingsWindow(bool prelaunch) : mPrelaunch(prelaunch) {
             "Mana restored to every active party member during field gameplay, up to their normal maximum. Fractional "
             "rates accumulate into whole mana points over time. The default of 0 disables recovery. This affects "
             "offline play only so every console remains in step.");
+        std::vector<int> multiplierValues;
+        std::vector<Rml::String> multiplierLabels;
+        for (int percent = 25; percent <= 400; percent += 25) {
+            multiplierValues.push_back(percent);
+            multiplierLabels.push_back(mana_recovery_rate_string(percent) + "x");
+        }
+        enum_row(leftPane, rightPane, "Damage received", SETTING(damage_received_percent),
+                 multiplierValues, multiplierLabels,
+                 "Multiplies damage received by party members after the game's damage calculation. Affects offline "
+                 "play only.");
+        enum_row(leftPane, rightPane, "Damage dealt", SETTING(damage_dealt_percent),
+                 multiplierValues, multiplierLabels,
+                 "Multiplies damage party members deal after the game's damage calculation. Affects offline play only.");
+        enum_row(leftPane, rightPane, "XP received", SETTING(xp_percent), multiplierValues, multiplierLabels,
+                 "Multiplies experience gained by each party member, rounded to the nearest point. Affects offline "
+                 "play only.");
     });
 
     add_tab("Local co-op", [this](Rml::Element* content) {

@@ -74,6 +74,20 @@ bool parse_mana_rate(const std::string& v, int& out) {
     }
 }
 
+bool parse_multiplier(const std::string& v, int& out) {
+    try {
+        size_t used = 0;
+        const double rate = std::stod(v, &used);
+        if (used != v.size() || !std::isfinite(rate) || rate < 0.25 || rate > 4.0) return false;
+        const double quarters = rate * 4.0;
+        if (std::fabs(quarters - std::round(quarters)) > 1e-7) return false;
+        out = int(std::lround(rate * 100.0));
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 // Enum <-> name tables.
 template <typename E, size_t N>
 bool parse_enum(const std::string& v, const char* const (&names)[N], E& out) {
@@ -182,6 +196,23 @@ const Field kFields[] = {
           [](const Settings& s) { return mana_rate(s.mana_recovery_hundredths_per_second); },
           [](Settings& s, const std::string& v) {
               return parse_mana_rate(v, s.mana_recovery_hundredths_per_second);
+          }},
+    Field{"game.damage_received_multiplier",
+          [](const Settings& s) { return mana_rate(s.damage_received_percent); },
+          [](Settings& s, const std::string& v) {
+              int percent;
+              return parse_multiplier(v, percent) && (s.damage_received_percent = percent, true);
+          }},
+    Field{"game.damage_dealt_multiplier",
+          [](const Settings& s) { return mana_rate(s.damage_dealt_percent); },
+          [](Settings& s, const std::string& v) {
+              int percent;
+              return parse_multiplier(v, percent) && (s.damage_dealt_percent = percent, true);
+          }},
+    Field{"game.xp_multiplier", [](const Settings& s) { return mana_rate(s.xp_percent); },
+          [](Settings& s, const std::string& v) {
+              int percent;
+              return parse_multiplier(v, percent) && (s.xp_percent = percent, true);
           }},
     Field{"game.camera_distance", [](const Settings& s) { return std::to_string(s.camera_distance); },
           [](Settings& s, const std::string& v) {

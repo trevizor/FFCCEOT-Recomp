@@ -39,6 +39,14 @@ extern bool dynamic_camera;  // with several players the camera frames them all,
 inline constexpr int kDynamicCameraMax = 400;
 extern int jump_landing_delay;  // 0, 50 or 100 percent of the original landing-to-jump delay (offline)
 extern int mana_recovery_hundredths_per_second;  // mana restored to every active party member (offline)
+extern int damage_received_percent;
+extern int damage_dealt_percent;
+extern int xp_percent;
+inline uint32_t scale_game_value(uint32_t value, int percent) {
+    if (value == 0 || percent == 100) return value;
+    const uint64_t scaled = (uint64_t(value) * uint32_t(std::max(percent, 0)) + 50) / 100;
+    return uint32_t(std::min<uint64_t>(scaled, std::numeric_limits<uint32_t>::max()));
+}
 inline int mana_recovery_amount(int recovery_hundredths, int& remainder_hundredths) {
     remainder_hundredths += std::max(recovery_hundredths, 0);
     const int recovery = remainder_hundredths / 100;

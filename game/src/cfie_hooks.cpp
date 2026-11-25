@@ -20,6 +20,9 @@ uint16_t aspect = 0x1555;
 int camera_distance = kCameraDistanceDefault;
 int jump_landing_delay = 100;
 int mana_recovery_hundredths_per_second = 0;
+int damage_received_percent = 100;
+int damage_dealt_percent = 100;
+int xp_percent = 100;
 bool dynamic_camera = true;
 bool npc_exits = true;
 bool mute_bgm = false;
@@ -210,6 +213,17 @@ bool send_stick(NtrCpu* c) {
     return all;
 }
 }  // namespace
+
+extern "C" void cfie_scale_damage(NtrCpu* c) {
+    if (ntr_rd8(c, A->network + 2) != 0) return;
+    bool target_is_player = false;
+    for (uint32_t slot = 0; slot < 4 && !target_is_player; slot++)
+        target_is_player = c->r[0] == ntr_rd32(c, A->players + 572 * slot + 328);
+    const int percent = target_is_player ? cfie::damage_received_percent : cfie::damage_dealt_percent;
+    if (percent == 100) return;
+    const uint32_t damage = ntr_rd32(c, c->r[1] + 4);
+    ntr_wr32(c, c->r[1] + 4, cfie::scale_game_value(damage, percent));
+}
 
 extern "C" void cfie_os_irq_handler(NtrCpu* c) { ntr::nitro::irq_handler(c, A->os_irq_table, A->os_irq_handler_thread_switch); }
 
@@ -500,6 +514,24 @@ extern "C" void cfie_npc_input(NtrCpu* c) {
     const uint32_t character = ntr_rd32(c, c->r[0] + 20);
     static int mana_ticks = 0, mana_remainder_hundredths = 0;
     if (character == ntr_rd32(c, A->players + 328)) {
+        static uint16_t previous_xp[4]{};
+        static bool xp_initialized = false;
+        constexpr uint32_t kXp = 0x1DC;
+        const bool scale_xp = cfie::xp_percent != 100 && ntr_rd8(c, A->network + 2) == 0;
+        for (uint32_t slot = 0; slot < 4; slot++) {
+            const uint32_t player = A->players + 572 * slot;
+            const uint16_t current = ntr_rd16(c, player + kXp);
+            if (scale_xp && xp_initialized && current > previous_xp[slot]) {
+                const uint32_t total = cfie::scale_game_value(current - previous_xp[slot], cfie::xp_percent);
+                const uint16_t adjusted = uint16_t(std::min<uint32_t>(
+                    uint32_t(previous_xp[slot]) + total, std::numeric_limits<uint16_t>::max()));
+                ntr_wr16(c, player + kXp, adjusted);
+                previous_xp[slot] = adjusted;
+            } else {
+                previous_xp[slot] = current;
+            }
+        }
+        xp_initialized = true;
         if (cfie::mana_recovery_hundredths_per_second <= 0 || ntr_rd8(c, A->network + 2) != 0) {
             mana_ticks = 0;
             mana_remainder_hundredths = 0;
@@ -817,6 +849,7 @@ void* cfie::find_hook(const char* name) {
         {"cfie_on_netcheck", reinterpret_cast<void*>(&cfie_on_netcheck)},
         {"cfie_guest_inputs_to_send", reinterpret_cast<void*>(&cfie_guest_inputs_to_send)},
         {"cfie_set_online_timing", reinterpret_cast<void*>(&cfie_set_online_timing)},
+        {"cfie_scale_damage", reinterpret_cast<void*>(&cfie_scale_damage)},
         {"ntr_nitro_save_context", reinterpret_cast<void*>(&ntr_nitro_save_context)},
         {"ntr_nitro_load_context", reinterpret_cast<void*>(&ntr_nitro_load_context)},
         {"ntr_nitro_init_context", reinterpret_cast<void*>(&ntr_nitro_init_context)},

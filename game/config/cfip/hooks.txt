@@ -68,3 +68,6 @@ main 020aced0 before cfie_on_movie_close
 # WIP, does not work yet: party members talking to characters (npc_interact); see cfie_interact_character.
 main 02057ae0 instead cfie_interact_character
 main 0209926c instead cfie_interact_as_main
+
+# Combat cheats: scale the final damage event after the game's own calculations.
+main 02057ff0 before cfie_scale_damage
