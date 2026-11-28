@@ -1544,15 +1544,14 @@ private:
             }
             const auto& bindings = settings.controls;
             uint16_t buttons = 0;
-            if (input::pad_held(e.pad, bindings.pad[int(input::Action::A)], dead)) buttons |= ntr::KeyA;
-            if (input::pad_held(e.pad, bindings.pad[int(input::Action::B)], dead)) buttons |= ntr::KeyB;
-            if (input::pad_held(e.pad, bindings.pad[int(input::Action::X)], dead)) buttons |= ntr::KeyX;
-            if (input::pad_held(e.pad, bindings.pad[int(input::Action::Y)], dead)) buttons |= ntr::KeyY;
-            if (input::pad_held(e.pad, bindings.pad[int(input::Action::R)], dead)) buttons |= ntr::KeyR;
-            if (input::pad_held(e.pad, bindings.pad[int(input::Action::Up)], dead)) buttons |= ntr::KeyUp;
-            if (input::pad_held(e.pad, bindings.pad[int(input::Action::Down)], dead)) buttons |= ntr::KeyDown;
-            if (input::pad_held(e.pad, bindings.pad[int(input::Action::Left)], dead) || x < -dead) buttons |= ntr::KeyLeft;
-            if (input::pad_held(e.pad, bindings.pad[int(input::Action::Right)], dead) || x > dead) buttons |= ntr::KeyRight;
+            for (int action = 0; action < input::kFirstAppAction; action++) {
+                if (action == int(input::Action::Start) || action == int(input::Action::Select)) continue;
+                if (input::pad_held(e.pad, bindings.pad[action], dead)) buttons |= kDsBits[action];
+            }
+            if (x < -dead) buttons |= ntr::KeyLeft;
+            if (x > dead) buttons |= ntr::KeyRight;
+            if (y < -dead) buttons |= ntr::KeyUp;
+            if (y > dead) buttons |= ntr::KeyDown;
             if (e.spell_hold) {
                 const float rx = SDL_GetGamepadAxis(e.pad, SDL_GAMEPAD_AXIS_RIGHTX) / 32767.0f;
                 const float ry = SDL_GetGamepadAxis(e.pad, SDL_GAMEPAD_AXIS_RIGHTY) / 32767.0f;
@@ -1610,13 +1609,10 @@ private:
             if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN && p.slot != 0 && !input_hold_ &&
                 !ui::any_document_visible() && (script.empty() || mix_real_input)) {
                 const auto button = input::PadInput::button(SDL_GamepadButton(e.gbutton.button));
-                if (settings.controls.pad[int(input::Action::A)] == button) p.presses |= ntr::KeyA;
-                if (settings.controls.pad[int(input::Action::B)] == button) p.presses |= ntr::KeyB;
-                if (settings.controls.pad[int(input::Action::X)] == button) p.presses |= ntr::KeyX;
-                if (settings.controls.pad[int(input::Action::Y)] == button) p.presses |= ntr::KeyY;
-                if (settings.controls.pad[int(input::Action::R)] == button) p.presses |= ntr::KeyR;
-                if (settings.controls.pad[int(input::Action::Left)] == button) p.presses |= ntr::KeyLeft;
-                if (settings.controls.pad[int(input::Action::Right)] == button) p.presses |= ntr::KeyRight;
+                for (int action = 0; action < input::kFirstAppAction; action++) {
+                    if (action == int(input::Action::Start) || action == int(input::Action::Select)) continue;
+                    if (settings.controls.pad[action] == button) p.presses |= kDsBits[action];
+                }
             }
             return true;
         }

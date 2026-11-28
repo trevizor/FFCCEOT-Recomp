@@ -11,7 +11,7 @@
 //   rstick x,y [frames]    push the right stick (percent, -100 to 100, y down): the spell radial opens and points
 //   spell N                the game's spell element (0 to 5: the gems top to bottom) is asked for this frame
 //   npc N,x,y [frames]     testing: party member N (1 to 3) takes a controller's stick (percent, y down; default 1 frame)
-//   npc_button N,A+B+X+Y+R+Left+Right [frames]  testing: party member N holds these DS buttons
+//   npc_button N,A+B+X+Y+L+R+Left+Right [frames]  testing: party member N holds these field DS buttons
 //   npc_rstick N,x,y [frames]  testing: party member N selects a spell with the right stick
 //   shot file.png          save the window
 //   quit                   exit

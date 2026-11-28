@@ -104,14 +104,16 @@ void test_npc_input() {
     ntr_wr16(&cpu, kSines + 2, 4096);
     ntr_wr16(&cpu, kSines + 1024 * 4, 4096);
     ntr_wr32(&cpu, kInput, 0x02060002);
+    ntr_wr32(&cpu, kInput + 4, 0x12345678);
+    ntr_wr32(&cpu, kInput + 12, 0x23456789);
     ntr_host.call = movement_yaw;
     cfie::npc_input[1] = {true, 0, 1};
     cfie_npc_input(&cpu);
-    CHECK(yaw_character == kLeader);
-    CHECK(ntr_rd32(&cpu, kInput) == 0x02060001);
-    CHECK(int32_t(ntr_rd32(&cpu, kInput + 4)) == 8960);
+    CHECK(yaw_character == 0);
+    CHECK(ntr_rd32(&cpu, kInput) == 0x02060002);
+    CHECK(ntr_rd32(&cpu, kInput + 4) == 0x12345678);
     CHECK(ntr_rd32(&cpu, kInput + 8) == 0);
-    CHECK(ntr_rd32(&cpu, kInput + 12) == 0);
+    CHECK(ntr_rd32(&cpu, kInput + 12) == 0x23456789);
     CHECK(cpu.r[0] == kController && cpu.r[1] == kInput && cpu.r[2] == 0x1234 &&
           cpu.r[3] == 0x5678 && cpu.r[14] == 0x2468);
 
@@ -126,11 +128,11 @@ void test_npc_input() {
     CHECK(ntr_rd32(&cpu, kInput) == 0x02060002 && yaw_character == 0);
 
     ntr_wr8(&cpu, kNetwork + 2, 0);
-    cfie::npc_input[1].buttons = 0xD33;
+    cfie::npc_input[1].buttons = 0xF33;
     cpu.r[0] = 0x021218AC + 32 + 12;
     cpu.r[2] = 0;
     cfie_npc_buttons(&cpu);
-    CHECK(cpu.r[2] == 0xC03);
+    CHECK(cpu.r[2] == 0xFB3);
     CHECK(cfie::npc_buttons_read[1]);
     cpu.r[0] = 0x021218AC + 12;
     cpu.r[2] = 7;
@@ -186,12 +188,12 @@ void test_npc_input() {
     CHECK(cast_calls == 1);
     cfie::npc_input[1] = {true, 1, 0, 0x100, 2};
     cfie_npc_input(&cpu);
-    CHECK(ntr_rd32(&cpu, kInput + 4) == 0 && ntr_rd32(&cpu, kInput + 12) == 0);
+    CHECK(ntr_rd32(&cpu, kInput + 4) == 0x12345678 && ntr_rd32(&cpu, kInput + 12) == 0x23456789);
 
     ntr_wr32(&cpu, kController + 8, 23);
     cfie::npc_input[1] = {true, 0, 1, 0x400, 2};
     cfie_npc_input(&cpu);
-    CHECK(ntr_rd32(&cpu, kInput + 4) == 0 && ntr_rd32(&cpu, kInput + 12) == 0);
+    CHECK(ntr_rd32(&cpu, kInput + 4) == 0x12345678 && ntr_rd32(&cpu, kInput + 12) == 0x23456789);
     cpu.r[0] = 0x021218AC + 32 + 12;
     cfie_npc_buttons(&cpu);
     CHECK(cpu.r[2] == 0x480);
@@ -211,7 +213,7 @@ void test_npc_input() {
     cpu.r[1] = kInput;
     cfie::npc_input[1] = {true, 0, 1, 0, 2};
     cfie_npc_input(&cpu);
-    CHECK(int32_t(ntr_rd32(&cpu, kInput + 4)) == 8960);
+    CHECK(int32_t(ntr_rd32(&cpu, kInput + 4)) == 4096);
 
     CHECK(cfie::select_release("CFIP"));
     expected_field = 0x0211679C;
