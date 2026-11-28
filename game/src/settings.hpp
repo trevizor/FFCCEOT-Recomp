@@ -77,7 +77,7 @@ struct Settings {
     bool npc_exits = true;  // party members a controller has taken can use map exits and entrances
     bool npc_interact = true;   // party members a controller has taken can talk, shop and use crystals
     bool pads_use_menus = true;  // every connected controller can operate menus, dialogue and cutscenes
-    bool dynamic_camera = true;  // with several players, the camera frames them all (from the camera distance to 4x)
+    bool dynamic_camera = true;  // frames controller-held party members offline (from the camera distance to 4x)
     // Online
     std::string console_name;  // the console's name other players see (a DS nickname, 10 characters); empty: this PC's
     std::string online_server = "kaeru";  // a Wi-Fi Connection revival server (see online_dns), or a DNS address

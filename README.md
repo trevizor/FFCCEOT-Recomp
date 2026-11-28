@@ -126,9 +126,10 @@ Related options (all on by default):
   pressed the button.
 - **All controllers use menus**: any connected controller can advance dialogue, skip cutscenes and use menus. On the field
   extra controllers only move their own member.
-- **Dynamic camera**: with more than one player the camera zooms out (from your camera distance setting, never closer, up
-  to 400%) and moves to keep every player in view. It centers on the players and favors player 1 near the edge of the view.
-  With one player the camera distance setting is used.
+- **Dynamic camera**: when extra controllers take party members in a single offline instance, the camera zooms out (from
+  your camera distance setting, never closer, up to 400%) and moves to keep them in view. It centers on the players and
+  favors player 1 near the edge of the view. With one player or in wireless or online games, the camera distance setting
+  is used.
 
 ### Option 2: one copy of the game per player
 

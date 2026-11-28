@@ -10,6 +10,7 @@ extern "C" void cfie_npc_buttons(NtrCpu* c);
 extern "C" int cfie_npc_ai(NtrCpu* c);
 extern "C" int cfie_exit_check_player(NtrCpu* c);
 extern "C" int cfie_analog_move(NtrCpu* c);
+extern "C" void cfie_camera_distance(NtrCpu* c);
 NtrHostApi ntr_host{};
 
 namespace {
@@ -256,10 +257,71 @@ void test_exit_check_player() {
     CHECK(ask(0x0206B60D, 1) == 0);
     cfie::npc_input[1] = {};
 }
+
+void test_local_dynamic_camera() {
+    std::vector<uint32_t> memory(0x400000 / 4);
+    std::vector<uint8_t*> pages(0x02400000 >> NTR_PAGE_SHIFT);
+    for (uint32_t i = 0; i < 0x400000 / 4096; ++i)
+        pages[(kBase >> NTR_PAGE_SHIFT) + i] = reinterpret_cast<uint8_t*>(memory.data()) + i * 4096;
+    NtrCpu cpu{};
+    cpu.read_pages = pages.data();
+    cpu.write_pages = pages.data();
+    constexpr uint32_t eye = 0x02309000, target = 0x02309100;
+    cfie::camera_distance = 200;
+    cfie::dynamic_camera = true;
+    for (const char* release : {"CFIE", "CFIP"}) {
+        CHECK(cfie::select_release(release));
+        const uint32_t offset = release[3] == 'P' ? 0x20 : 0;
+        const uint32_t network = kNetwork + offset;
+        ntr_wr32(&cpu, kPlayers + offset + 328, kLeader);
+        ntr_wr32(&cpu, kPlayers + offset + 572 + 328, kNpc);
+        ntr_wr32(&cpu, kNpc + 0x50, 1000000);
+        auto camera = [&]() {
+            ntr_wr32(&cpu, eye, 500000);
+            ntr_wr32(&cpu, eye + 4, 300000);
+            ntr_wr32(&cpu, eye + 8, 500000);
+            ntr_wr32(&cpu, target, 0);
+            ntr_wr32(&cpu, target + 4, 0);
+            ntr_wr32(&cpu, target + 8, 0);
+            cpu.r[0] = eye;
+            cpu.r[2] = target;
+            cpu.r[14] = 0x0208468F;
+            cfie_camera_distance(&cpu);
+        };
+        auto plain_camera = [&]() {
+            CHECK(ntr_rd32(&cpu, eye) == 1000000);
+            CHECK(ntr_rd32(&cpu, eye + 4) == 600000);
+            CHECK(ntr_rd32(&cpu, eye + 8) == 1000000);
+            CHECK(ntr_rd32(&cpu, target) == 0 && ntr_rd32(&cpu, target + 8) == 0);
+        };
+
+        cfie::npc_input[1] = {};
+        camera();
+        plain_camera();  // AI party members are not framed
+        cfie::npc_input[1] = {true, 0, 0};
+        for (int i = 0; i < 10; ++i) camera();
+        CHECK(ntr_rd32(&cpu, target) != 0 || ntr_rd32(&cpu, target + 8) != 0);
+
+        for (uint8_t network_state : {uint8_t(1), uint8_t(2)}) {
+            ntr_wr8(&cpu, network + 2, network_state);
+            camera();
+            plain_camera();  // stale controller inputs and previous glide must not affect multiplayer
+        }
+        ntr_wr8(&cpu, network + 2, 0);
+        cfie::dynamic_camera = false;
+        camera();
+        plain_camera();
+        cfie::dynamic_camera = true;
+        cfie::npc_input[1] = {};
+    }
+    CHECK(cfie::select_release("CFIE"));
+    cfie::camera_distance = cfie::kCameraDistanceDefault;
+}
 }  // namespace
 
 int main() {
     test_npc_input();
     test_exit_check_player();
+    test_local_dynamic_camera();
     return failures ? 1 : 0;
 }

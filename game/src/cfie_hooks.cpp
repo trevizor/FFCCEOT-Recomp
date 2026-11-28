@@ -681,29 +681,19 @@ struct CameraGlide {
 };
 CameraGlide glide;
 
-// Positions (x, z) of the players the camera must keep in view, player 1 first: the main player and the party
-// members controllers have taken, or everyone in the game when it is networked.
+// Positions of the players the camera must keep in view, player 1 first: the main player and the party
+// members controllers have taken.
 int camera_players(NtrCpu* c, float (*out)[3]) {
-    const uint32_t lr = c->r[14], r0 = c->r[0], r1 = c->r[1], r2 = c->r[2], r3 = c->r[3];
-    const bool network = ntr_rd8(c, A->network + 2) != 0;
     int count = 0;
     for (uint32_t slot = 0; slot < 4; slot++) {
+        if (slot != 0 && !cfie::npc_input[slot].active) continue;
         const uint32_t character = ntr_rd32(c, A->players + 572 * slot + 328);
         if (!character) continue;
-        bool wanted = slot == 0 || cfie::npc_input[slot].active;
-        if (network && slot != 0) {
-            c->r[0] = A->players;
-            c->r[1] = slot;
-            ntr_call(c, A->player_present | 1);
-            wanted = c->r[0] != 0;
-        }
-        if (!wanted) continue;
         out[count][0] = float(int32_t(ntr_rd32(c, character + 0x50)));
         out[count][1] = float(int32_t(ntr_rd32(c, character + 0x54)));
         out[count][2] = float(int32_t(ntr_rd32(c, character + 0x58)));
         count++;
     }
-    c->r[0] = r0, c->r[1] = r1, c->r[2] = r2, c->r[3] = r3, c->r[14] = lr;
     return count;
 }
 }  // namespace
@@ -719,7 +709,9 @@ extern "C" void cfie_camera_distance(NtrCpu* c) {
     }
     float want_distance = float(cfie::camera_distance), want_x = 0, want_z = 0;
     float positions[4][3];
-    const int players = cfie::dynamic_camera ? camera_players(c, positions) : 0;
+    const bool network = (cfie::dynamic_camera || glide.active) && ntr_rd8(c, A->network + 2) != 0;
+    if (network) glide = {};
+    const int players = cfie::dynamic_camera && !network ? camera_players(c, positions) : 0;
     if (players >= 2) {
         const float ef[3] = {float(e[0]), float(e[1]), float(e[2])}, tf[3] = {float(t[0]), float(t[1]), float(t[2])};
         const cfie::CameraFraming f =
