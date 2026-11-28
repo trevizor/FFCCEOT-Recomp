@@ -785,7 +785,7 @@ private:
         }
         ui_ready_ = true;
         ui::push_document(std::make_unique<ui::Overlay>(), true, true);
-        ui::push_document(std::make_unique<ui::MenuBar>(), false);
+        if (player == 1) ui::push_document(std::make_unique<ui::MenuBar>(), false);
         if (show_prelaunch) ui::push_document(std::make_unique<ui::Prelaunch>());
     }
 
