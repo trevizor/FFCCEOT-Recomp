@@ -297,6 +297,8 @@ public:
     // Game thread.
     bool init_graphics(const std::filesystem::path& save_path) {
         use_save_path(save_path);
+        if (player > 1 && !follow_settings_path.empty())
+            parallel_settings_snapshot_ = read_file(follow_settings_path);
         if (!presenter_.init(window_, allow_flip_model && !exporting_)) {
             std::fprintf(stderr, "cannot open the game window: %s\n", SDL_GetError());
             return false;
@@ -412,6 +414,7 @@ public:
     }
 
     bool show_frame(const ntr::Frame& frame) {
+        poll_parallel_settings();
         if (title_dirty_) update_title();  // a change made last frame is now in effect
         if (exporting_ && !follow_first_player()) return false;
         if (!exporting_ && parent_pid && (frames_ & 31) == 0 && !view_share::process_alive(parent_pid)) return false;
@@ -675,6 +678,7 @@ private:
             if (window2_ && e.window.windowID == SDL_GetWindowID(window2_)) {  // the second window was closed
                 settings.layout.layout = video::Layout::Single;
                 settings_dirty_ = true;
+                publish_parallel_settings();
                 title_dirty_ = true;
                 update_layout();
             }
@@ -907,6 +911,7 @@ private:
     // Puts edited settings into effect as they are changed (the game is running behind the menu).
     void apply_settings() {
         settings_dirty_ = true;
+        publish_parallel_settings();
         // A setting that changes the emulation, changed during a recording: the replay drifts from here.
         if (recorder.is_open()) {
             const auto now = emulation_settings(settings);
@@ -919,6 +924,10 @@ private:
         ui::apply_scale();
         update_layout();
         sync_video();
+        if (runtime_) {
+            runtime_->set_fast_cart(settings.fast_loading);
+            runtime_->set_cpu_speed(settings.cpu_speed);
+        }
         if (audio_) SDL_SetAudioStreamGain(audio_, settings.volume / 100.0f);
         cfie::online_buffer = settings.online_buffer;
         cfie::fast_saving = settings.fast_saving;
@@ -935,6 +944,24 @@ private:
         cfie::npc_interact = settings.npc_interact;
         cfie::npc_control = settings.npc_control && players == 1;
         title_dirty_ = true;
+    }
+
+    void publish_parallel_settings() {
+        if (player != 1 || players <= 1 || settings_path.empty()) return;
+        if (!save_settings(settings_path, settings))
+            std::fprintf(stderr, "cannot publish settings to the other instances\n");
+    }
+
+    void poll_parallel_settings() {
+        if (player == 1 || follow_settings_path.empty() || (frames_ & 7) != 0) return;
+        const auto contents = read_file(follow_settings_path);
+        if (contents.empty() || contents == parallel_settings_snapshot_) return;
+        Settings followed = settings;
+        if (!load_settings(follow_settings_path, followed)) return;
+        parallel_settings_snapshot_ = contents;
+        followed.fullscreen = settings.fullscreen;  // only the main window owns the desktop fullscreen state
+        settings = std::move(followed);
+        apply_settings();
     }
 
     void change_camera_distance(int steps) {
@@ -963,6 +990,7 @@ private:
         default: return;
         }
         settings_dirty_ = true;
+        publish_parallel_settings();
         update_layout();
         sync_video();
         title_dirty_ = true;
@@ -993,6 +1021,7 @@ private:
         default: return;
         }
         settings_dirty_ = true;
+        publish_parallel_settings();
         update_layout();
         sync_video();
         title_dirty_ = true;
@@ -1864,6 +1893,7 @@ private:
     SDL_Rect windowed_{};    // the window's place before going fullscreen
     bool windowed_maximized_ = false;
     bool settings_dirty_ = false;  // changed since settings.ini was written
+    std::vector<uint8_t> parallel_settings_snapshot_;
     ntr::VideoSettings sent_video_;
     bool title_dirty_ = false;
     SDL_AudioStream* audio_ = nullptr;
@@ -1947,6 +1977,7 @@ private:
 public:
     Settings settings;
     std::filesystem::path settings_path;
+    std::filesystem::path follow_settings_path;
     int player = 1;   // this window's player, 1-4 (2 and up keep a save of their own and leave settings.ini alone)
     int players = 1;  // how many windows are playing on this PC
     view_share::Mapping view_map;  // the pictures players 2 and up share with the first (one window for all players)
@@ -2603,6 +2634,7 @@ int main(int argc, char** argv) {
 
     host.settings = settings;
     host.settings_path = player > 1 ? std::filesystem::path{} : settings_path;  // (players 2 and up leave it to the first)
+    host.follow_settings_path = player > 1 ? settings_path : std::filesystem::path{};
     host.player = player;
     host.players = players;
     if (one_window && !host.share_one_window(share_name)) {

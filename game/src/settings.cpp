@@ -377,7 +377,9 @@ bool set_setting(Settings& s, const std::string& key, const std::string& value) 
 bool save_settings(const std::filesystem::path& path, const Settings& s) {
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
-    std::ofstream f(path);
+    const std::filesystem::path temp =
+        path.parent_path() / (path.filename().string() + ".tmp");
+    std::ofstream f(temp, std::ios::trunc);
     if (!f) return false;
     f << "# Echoes of Time recomp settings (written by the settings menu)\n";
     for (const Field& fd : kFields) f << fd.key << " = " << fd.get(s) << "\n";
@@ -386,5 +388,25 @@ bool save_settings(const std::filesystem::path& path, const Settings& s) {
         f << "controls." << id << ".key = " << input::key_to_string(s.controls.key[i]) << "\n";
         f << "controls." << id << ".pad = " << input::pad_to_string(s.controls.pad[i]) << "\n";
     }
-    return bool(f);
+    f.flush();
+    if (!f) {
+        f.close();
+        std::filesystem::remove(temp, ec);
+        return false;
+    }
+    f.close();
+#ifdef _WIN32
+    if (!MoveFileExW(temp.c_str(), path.c_str(),
+                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        std::filesystem::remove(temp, ec);
+        return false;
+    }
+#else
+    std::filesystem::rename(temp, path, ec);
+    if (ec) {
+        std::filesystem::remove(temp, ec);
+        return false;
+    }
+#endif
+    return true;
 }
