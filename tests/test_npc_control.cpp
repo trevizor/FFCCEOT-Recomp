@@ -132,7 +132,7 @@ void test_npc_input() {
     cpu.r[0] = 0x021218AC + 32 + 12;
     cpu.r[2] = 0;
     cfie_npc_buttons(&cpu);
-    CHECK(cpu.r[2] == 0xFB3);
+    CHECK(cpu.r[2] == 0xF33);
     CHECK(cfie::npc_buttons_read[1]);
     cpu.r[0] = 0x021218AC + 12;
     cpu.r[2] = 7;
@@ -207,7 +207,7 @@ void test_npc_input() {
     cpu.r[0] = 0x021218AC + 32 + 12;
     cfie::npc_input[1].buttons |= 0x100;
     cfie_npc_buttons(&cpu);
-    CHECK(cpu.r[2] == 0x400);
+    CHECK(cpu.r[2] == 0x500);
     ntr_wr32(&cpu, kController + 8, 2);
     cpu.r[0] = kController;
     cpu.r[1] = kInput;

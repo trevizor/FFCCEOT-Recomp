@@ -297,8 +297,6 @@ public:
     // Game thread.
     bool init_graphics(const std::filesystem::path& save_path) {
         use_save_path(save_path);
-        if (player > 1 && !follow_settings_path.empty())
-            parallel_settings_snapshot_ = read_file(follow_settings_path);
         if (!presenter_.init(window_, allow_flip_model && !exporting_)) {
             std::fprintf(stderr, "cannot open the game window: %s\n", SDL_GetError());
             return false;
@@ -953,11 +951,11 @@ private:
     }
 
     void poll_parallel_settings() {
-        if (player == 1 || follow_settings_path.empty() || (frames_ & 7) != 0) return;
-        const auto contents = read_file(follow_settings_path);
+        if (player == 1 || follow_settings_path_.empty() || (frames_ & 7) != 0) return;
+        const auto contents = read_file(follow_settings_path_);
         if (contents.empty() || contents == parallel_settings_snapshot_) return;
         Settings followed = settings;
-        if (!load_settings(follow_settings_path, followed)) return;
+        if (!load_settings(follow_settings_path_, followed)) return;
         parallel_settings_snapshot_ = contents;
         followed.fullscreen = settings.fullscreen;  // only the main window owns the desktop fullscreen state
         settings = std::move(followed);
@@ -1893,6 +1891,7 @@ private:
     SDL_Rect windowed_{};    // the window's place before going fullscreen
     bool windowed_maximized_ = false;
     bool settings_dirty_ = false;  // changed since settings.ini was written
+    std::filesystem::path follow_settings_path_;
     std::vector<uint8_t> parallel_settings_snapshot_;
     ntr::VideoSettings sent_video_;
     bool title_dirty_ = false;
@@ -1977,7 +1976,6 @@ private:
 public:
     Settings settings;
     std::filesystem::path settings_path;
-    std::filesystem::path follow_settings_path;
     int player = 1;   // this window's player, 1-4 (2 and up keep a save of their own and leave settings.ini alone)
     int players = 1;  // how many windows are playing on this PC
     view_share::Mapping view_map;  // the pictures players 2 and up share with the first (one window for all players)
@@ -1992,6 +1990,10 @@ public:
         combined_ = true;
         for (int s = 0; s < view_share::kChildren; s++) readers_[s] = view_share::Reader(view_map.block(), s);
         return true;
+    }
+    void follow_settings(std::filesystem::path path, std::vector<uint8_t> snapshot) {
+        follow_settings_path_ = std::move(path);
+        parallel_settings_snapshot_ = std::move(snapshot);
     }
     uint64_t exit_after_frames = 0;  // 0 = run until the window closes
     uint64_t crash_at_frame = 0, abort_at_frame = 0, report_at_frame = 0;  // testing the crash dialog and the report
@@ -2293,7 +2295,11 @@ int main(int argc, char** argv) {
     if (!per_release_save) save_path = player_save(save_path, player);
     Settings settings;
     if (testing) settings.volume = 0;
-    if (!settings_path.empty()) load_settings(settings_path, settings);
+    std::vector<uint8_t> settings_file_snapshot;
+    if (!settings_path.empty()) {
+        load_settings(settings_path, settings);
+        if (player > 1) settings_file_snapshot = read_file(settings_path);
+    }
 
     ntr::RuntimeOptions options;
     uint64_t exit_after_frames = 0, crash_at_frame = 0, abort_at_frame = 0, report_at_frame = 0;
@@ -2634,7 +2640,7 @@ int main(int argc, char** argv) {
 
     host.settings = settings;
     host.settings_path = player > 1 ? std::filesystem::path{} : settings_path;  // (players 2 and up leave it to the first)
-    host.follow_settings_path = player > 1 ? settings_path : std::filesystem::path{};
+    if (player > 1) host.follow_settings(settings_path, std::move(settings_file_snapshot));
     host.player = player;
     host.players = players;
     if (one_window && !host.share_one_window(share_name)) {
